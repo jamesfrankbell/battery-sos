@@ -1,0 +1,6 @@
+node_modules/
+data/app-data.json
+data/billing-data.json
+.DS_Store
+mac/dist/
+.env

@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: battery-sos-billing
+    runtime: node
+    plan: starter
+    rootDir: apps/battery-sos
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/billing/status
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: LICENSE_SECRET
+        sync: false
+      - key: BILLING_ADMIN_TOKEN
+        sync: false

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LocalFlow Workspace</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>LocalFlow Workspace</h1>
+        <p>Local-first tasks + docs with private self-hosting.</p>
+      </div>
+      <div class="status-chip" id="sync-status">Idle</div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel" aria-labelledby="tasks-heading">
+        <div class="panel-head">
+          <h2 id="tasks-heading">Phase 1: Task Management</h2>
+          <span class="panel-subtitle">One page for capture, ownership, and delivery flow.</span>
+        </div>
+
+        <form id="task-form" class="form-grid">
+          <label>
+            Task
+            <input id="task-title" name="title" type="text" required placeholder="Ship onboarding checklist" />
+          </label>
+          <label>
+            Due date
+            <input id="task-due-date" name="dueDate" type="date" />
+          </label>
+          <label>
+            Project
+            <input id="task-project" name="project" list="project-options" placeholder="Platform" />
+            <datalist id="project-options"></datalist>
+          </label>
+          <label>
+            People (comma-separated)
+            <input id="task-assignees" name="assignees" list="people-options" placeholder="Alex, Sam" />
+            <datalist id="people-options"></datalist>
+          </label>
+          <button type="submit" class="button primary">Add task</button>
+        </form>
+
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Project</th>
+                <th>Due</th>
+                <th>People</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="task-rows"></tbody>
+          </table>
+        </div>
+
+        <section class="kanban" aria-labelledby="kanban-heading">
+          <h3 id="kanban-heading">Kanban Flow</h3>
+          <div class="kanban-grid" id="kanban-board">
+            <article class="kanban-column" data-status="proposed">
+              <h4>Proposed</h4>
+              <div class="kanban-dropzone" data-status="proposed"></div>
+            </article>
+            <article class="kanban-column" data-status="in_progress">
+              <h4>In progress</h4>
+              <div class="kanban-dropzone" data-status="in_progress"></div>
+            </article>
+            <article class="kanban-column" data-status="review">
+              <h4>Review</h4>
+              <div class="kanban-dropzone" data-status="review"></div>
+            </article>
+            <article class="kanban-column" data-status="finished">
+              <h4>Finished</h4>
+              <div class="kanban-dropzone" data-status="finished"></div>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel" aria-labelledby="docs-heading">
+        <div class="panel-head">
+          <h2 id="docs-heading">Phase 2: Documents & Nested Pages</h2>
+          <span class="panel-subtitle">Organize pages by parent, category, and tags.</span>
+        </div>
+
+        <form id="doc-create-form" class="form-grid">
+          <label>
+            New page title
+            <input id="doc-create-title" name="title" type="text" required placeholder="Operations Runbook" />
+          </label>
+          <label>
+            Parent page
+            <select id="doc-create-parent" name="parentId"></select>
+          </label>
+          <label>
+            Category
+            <input id="doc-create-category" name="category" type="text" placeholder="Operations" />
+          </label>
+          <label>
+            Tags (comma-separated)
+            <input id="doc-create-tags" name="tags" type="text" placeholder="runbook, internal" />
+          </label>
+          <button type="submit" class="button primary">Create page</button>
+        </form>
+
+        <div class="doc-filters">
+          <label>
+            Filter by category
+            <select id="doc-filter-category"></select>
+          </label>
+          <label>
+            Filter by tag
+            <input id="doc-filter-tag" type="text" placeholder="type a tag" />
+          </label>
+        </div>
+
+        <div class="docs-grid">
+          <aside class="doc-tree-shell">
+            <h3>Page tree</h3>
+            <ul id="doc-tree" class="doc-tree"></ul>
+          </aside>
+
+          <form id="doc-editor-form" class="doc-editor">
+            <h3>Selected page</h3>
+            <input type="hidden" id="doc-editor-id" />
+
+            <label>
+              Title
+              <input id="doc-editor-title" name="title" type="text" placeholder="Select a page" required />
+            </label>
+            <label>
+              Parent
+              <select id="doc-editor-parent" name="parentId"></select>
+            </label>
+            <label>
+              Category
+              <input id="doc-editor-category" name="category" type="text" />
+            </label>
+            <label>
+              Tags
+              <input id="doc-editor-tags" name="tags" type="text" />
+            </label>
+            <label>
+              Content
+              <textarea id="doc-editor-content" name="content" rows="12" placeholder="Write notes, specs, or meeting docs here."></textarea>
+            </label>
+
+            <div class="editor-actions">
+              <button type="submit" class="button primary">Save page</button>
+              <button type="button" class="button danger" id="doc-delete-button">Delete page</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <p id="app-message" class="app-message" role="status" aria-live="polite"></p>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
