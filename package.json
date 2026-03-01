@@ -5,8 +5,8 @@
   "description": "Local-first task and document workspace",
   "main": "server/server.js",
   "scripts": {
-    "start": "node --env-file=.env server/server.js",
-    "dev": "node --env-file=.env server/server.js"
+    "start": "node server/server.js",
+    "dev": "node server/server.js"
   },
   "engines": {
     "node": ">=18"
