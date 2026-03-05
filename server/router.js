@@ -23,7 +23,8 @@ const {
   updateTask,
 } = require('./store');
 
-const CLIENT_DIR = path.resolve(__dirname, '..', 'client');
+const CLIENT_DIR = path.resolve(__dirname, '..', 'website');
+const DOWNLOADS_DIR = path.resolve(__dirname, '..', 'mac', 'dist');
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -255,6 +256,31 @@ function handleBillingPage(res, requestUrl) {
   return false;
 }
 
+function resolveDownloadFile(pathname) {
+  if (pathname === '/downloads/battery-sos-macos.dmg') {
+    return path.join(DOWNLOADS_DIR, 'battery-sos-macos.dmg');
+  }
+
+  if (pathname === '/downloads/battery-sos-macos.dmg.sha256') {
+    return path.join(DOWNLOADS_DIR, 'battery-sos-macos.dmg.sha256');
+  }
+
+  return null;
+}
+
+function handleDownloads(res, pathname) {
+  const filePath = resolveDownloadFile(pathname);
+  if (!filePath) return false;
+
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    sendError(res, 404, 'Download not found.');
+    return true;
+  }
+
+  sendFile(res, filePath);
+  return true;
+}
+
 function createRequestHandler() {
   return async (req, res) => {
     try {
@@ -266,6 +292,10 @@ function createRequestHandler() {
       }
 
       if (handleBillingPage(res, requestUrl)) {
+        return;
+      }
+
+      if (handleDownloads(res, requestUrl.pathname)) {
         return;
       }
 
