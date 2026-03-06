@@ -2,6 +2,7 @@ import Cocoa
 import AVFoundation
 import IOKit.ps
 import ServiceManagement
+import Sparkle
 
 private struct BatteryState {
     let percent: Int
@@ -2716,10 +2717,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let billingBaseURL = URL(string: ProcessInfo.processInfo.environment["BATTERY_SOS_BILLING_URL"] ?? "http://127.0.0.1:8787")!
     private let monetization = MonetizationManager()
     private let overlay = OverlayManager()
+    private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     private var batteryTimer: Timer?
     private var dismissedUntilRecover = false
     private var manualTestActive = false
+    private var checkForUpdatesItem: NSMenuItem?
     private var lastKnownChargingState: Bool?
     private var thresholdPercent = 1
     private var soundEffectsMuted = false
@@ -3038,6 +3041,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let testItem = NSMenuItem(title: "Test SOS", action: #selector(startManualTest), keyEquivalent: "t")
         testItem.target = self
         menu.addItem(testItem)
+
+        let checkUpdatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+        checkUpdatesItem.target = updaterController
+        menu.addItem(checkUpdatesItem)
+        checkForUpdatesItem = checkUpdatesItem
 
         let modeMenuItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
         let modeMenu = NSMenu(title: "Mode")
