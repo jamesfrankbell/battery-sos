@@ -2,5 +2,7 @@ node_modules/
 data/app-data.json
 data/billing-data.json
 .DS_Store
-mac/dist/
+mac/dist/*
+!mac/dist/battery-sos-macos.dmg
+!mac/dist/battery-sos-macos.dmg.sha256
 .env
