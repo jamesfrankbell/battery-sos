@@ -3,47 +3,200 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Battery SOS for Mac</title>
-    <meta name="description" content="Friends don't let friends die. Battery SOS for Mac warns you before your laptop dies." />
+    <title>Battery SOS for Mac — V2</title>
+    <meta
+      name="description"
+      content="Battery SOS is the tiny Mac app that warns you before your laptop dies, so your work doesn’t go with it."
+    />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="container">
-      <header class="hero">
-        <p class="label">Battery SOS for Mac</p>
-        <h1>Friends don’t let friends die.</h1>
-        <p class="tagline">Battery SOS warns you before your Mac shuts down.</p>
+    <div class="ambient ambient-1"></div>
+    <div class="ambient ambient-2"></div>
 
-        <a class="download-btn" href="/downloads/battery-sos-macos.dmg">Download Battery SOS</a>
+    <main class="shell">
+      <section class="hero card">
+        <div class="eyebrow">Battery SOS for Mac</div>
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <h1>Your Mac whispers.<br />Battery SOS has the decency to yell.</h1>
+            <p class="lede">
+              Battery SOS is a tiny Mac app that warns you before your laptop dies,
+              so you can plug in before your screen goes black and your unsaved work
+              ascends into the heavens.
+            </p>
 
-        <p class="sub">Simple app. One job. Saves your work from surprise battery death.</p>
-      </header>
+            <div class="cta-row">
+              <a class="button primary" href="/downloads/battery-sos-macos.dmg">Download for Mac</a>
+              <a class="button ghost" href="#why">Why this exists</a>
+            </div>
 
-      <section class="section" id="download">
-        <h2>Download</h2>
-        <p>Use these links when ready to publish:</p>
-        <div class="links">
-          <a class="link-pill" href="/downloads/battery-sos-macos.dmg">battery-sos-macos.dmg</a>
-          <a class="link-pill" href="/downloads/battery-sos-macos.dmg.sha256">battery-sos-macos.dmg.sha256</a>
+            <ul class="trust-row">
+              <li>Apple signed + notarized</li>
+              <li>Set your own warning level</li>
+              <li>Built for people who like finishing their work</li>
+            </ul>
+          </div>
+
+          <aside class="mock-card">
+            <div class="mock-top">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="mock-body">
+              <p class="mock-label">BATTERY SOS</p>
+              <h3>Hey genius, you’ve got 9% left.</h3>
+              <p>
+                Plug in now, save your tabs, save your dignity, and avoid becoming a
+                cautionary tale.
+              </p>
+              <div class="mock-meter">
+                <div class="mock-meter-fill"></div>
+              </div>
+              <div class="mock-actions">
+                <span>Dismiss</span>
+                <span class="accent">Open Settings</span>
+              </div>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <section class="section">
-        <h2>How it works</h2>
-        <ol>
-          <li>Install the app (DMG → Applications).</li>
-          <li>Set your low-battery warning level.</li>
-          <li>Get alerts. Plug in. Keep working.</li>
-        </ol>
+      <section class="strip">
+        <p>
+          For writers, builders, tab hoarders, caffeine-fueled gremlins, and anyone
+          who has ever said, “I’ll plug it in in a second” right before disaster.
+        </p>
       </section>
 
-      <section class="section">
-        <h2>Trust</h2>
-        <ul>
-          <li>Developer ID: JAMES FRANK BELL (9JNKPQCLGG)</li>
-          <li>Apple signed + notarized</li>
-          <li>SHA256 checksum included</li>
-        </ul>
+      <section class="card" id="why">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">The problem</p>
+            <h2>macOS gives low-battery warnings. They’re just weirdly easy to ignore.</h2>
+          </div>
+          <p class="section-copy">
+            Battery SOS exists for one reason: to make the warning impossible to miss
+            before your computer rage-quits the relationship.
+          </p>
+        </div>
+
+        <div class="three-up">
+          <article>
+            <h3>More obvious</h3>
+            <p>
+              A clearer, more intentional warning when your battery drops below the level
+              you choose.
+            </p>
+          </article>
+          <article>
+            <h3>More customizable</h3>
+            <p>
+              Set the threshold that matches how you work — whether you’re cautious at
+              20% or reckless at 7%.
+            </p>
+          </article>
+          <article>
+            <h3>More merciful</h3>
+            <p>
+              Prevent the stupid kind of interruption: lost edits, broken flow, and that
+              tiny funeral in your soul when the screen goes dark.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">How it works</p>
+            <h2>Simple app. One job. Zero nonsense.</h2>
+          </div>
+        </div>
+
+        <div class="steps">
+          <div class="step">
+            <span class="step-num">1</span>
+            <div>
+              <h3>Install it</h3>
+              <p>Drag Battery SOS into Applications like the civilized Mac user you pretend to be.</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-num">2</span>
+            <div>
+              <h3>Pick your panic point</h3>
+              <p>Choose the battery percentage where you want the alert to fire.</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-num">3</span>
+            <div>
+              <h3>Stay ahead of the crash</h3>
+              <p>Get the warning, grab a charger, keep working, and feel smug about your foresight.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card emphasis">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">What you’re really buying</p>
+            <h2>Not a battery app. A continuity app.</h2>
+          </div>
+          <p class="section-copy">
+            Battery SOS helps you keep your train of thought, your unsaved work, and your
+            afternoon from getting body-slammed by a preventable shutdown.
+          </p>
+        </div>
+
+        <div class="quote-grid">
+          <blockquote>
+            “This is for the person with 37 tabs open, a half-written email, a doc they forgot to save, and exactly zero interest in learning a lesson the hard way.”
+          </blockquote>
+          <div class="mini-list">
+            <p>Good for:</p>
+            <ul>
+              <li>Writing sessions</li>
+              <li>Client calls</li>
+              <li>Editing marathons</li>
+              <li>Airport work sprints</li>
+              <li>Living on vibes and 11% battery</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="card faq">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Trust</p>
+            <h2>No mystery meat.</h2>
+          </div>
+        </div>
+
+        <div class="faq-grid">
+          <article>
+            <h3>Is it legit?</h3>
+            <p>Yep. Developer ID: JAMES FRANK BELL (9JNKPQCLGG). Apple signed and notarized.</p>
+          </article>
+          <article>
+            <h3>Do I need to think hard?</h3>
+            <p>No. Install it, set the threshold once, and let the app be louder than your denial.</p>
+          </article>
+          <article>
+            <h3>Can I verify the file?</h3>
+            <p>Also yes. SHA256 checksum is included for the delightfully paranoid.</p>
+          </article>
+        </div>
+
+        <div class="download-box">
+          <a class="button primary" href="/downloads/battery-sos-macos.dmg">Download Battery SOS</a>
+          <div class="download-links">
+            <a href="/downloads/battery-sos-macos.dmg">battery-sos-macos.dmg</a>
+            <a href="/downloads/battery-sos-macos.dmg.sha256">battery-sos-macos.dmg.sha256</a>
+          </div>
+        </div>
       </section>
     </main>
   </body>
