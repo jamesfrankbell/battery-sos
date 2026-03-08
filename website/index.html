@@ -14,12 +14,18 @@
     <div class="ambient ambient-1"></div>
     <div class="ambient ambient-2"></div>
 
+    <header class="scroll-header" id="scroll-header" aria-hidden="true">
+      <div class="scroll-header-inner">
+        <a class="button primary scroll-header-cta" href="/downloads/battery-sos-macos.dmg">Download</a>
+      </div>
+    </header>
+
     <main class="shell">
-      <section class="hero card">
+      <section class="hero card" id="hero-section">
         <div class="eyebrow">Battery SOS for Mac</div>
         <div class="hero-grid">
           <div class="hero-copy">
-            <h1>Your Mac whispers.<br />Battery SOS has the decency to yell.</h1>
+            <h1>Your Mac whispers.<br /><span class="hero-pulse-text">Battery SOS</span> has the decency to yell.</h1>
             <p class="lede">
               Battery SOS is a tiny Mac app that warns you before your laptop dies,
               so you can plug in before your screen goes black and your unsaved work
@@ -105,6 +111,47 @@
         </div>
       </section>
 
+      <section class="card" id="modes">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Alert Modes</p>
+            <h2>Pick your flavor of panic.</h2>
+          </div>
+          <p class="section-copy">
+            Hover a mode on the left to preview the kind of alert screen Battery SOS will show.
+          </p>
+        </div>
+
+        <div class="modes-showcase" id="modes-showcase">
+          <div class="modes-list" role="listbox" aria-label="Battery SOS modes">
+            <button class="mode-item is-active" data-mode="matrix">
+              <span class="mode-item-name">Matrix</span>
+              <span class="mode-item-sub">Cyber terminal panic</span>
+            </button>
+            <button class="mode-item" data-mode="vitals">
+              <span class="mode-item-name">Vitals Monitor</span>
+              <span class="mode-item-sub">EKG + flatline pressure</span>
+            </button>
+            <button class="mode-item" data-mode="mission">
+              <span class="mode-item-name">Mission Impossible</span>
+              <span class="mode-item-sub">Countdown intensity</span>
+            </button>
+            <button class="mode-item" data-mode="starship">
+              <span class="mode-item-name">Starship</span>
+              <span class="mode-item-sub">Life support critical</span>
+            </button>
+            <button class="mode-item" data-mode="reactor">
+              <span class="mode-item-name">Nuclear Reactor</span>
+              <span class="mode-item-sub">Meltdown warning mode</span>
+            </button>
+          </div>
+
+          <aside class="mode-preview mode-matrix" id="mode-preview" aria-live="polite">
+            <div id="mode-preview-content"></div>
+          </aside>
+        </div>
+      </section>
+
       <section class="card">
         <div class="section-head compact">
           <div>
@@ -178,7 +225,7 @@
         <div class="faq-grid">
           <article>
             <h3>Is it legit?</h3>
-            <p>Yep. Developer ID: JAMES FRANK BELL (9JNKPQCLGG). Apple signed and notarized.</p>
+            <p>Yep. Apple Developer ID signed + notarized.</p>
           </article>
           <article>
             <h3>Do I need to think hard?</h3>
@@ -199,5 +246,139 @@
         </div>
       </section>
     </main>
+
+    <script>
+      const MODE_CONTENT = {
+        matrix: {
+          className: 'mode-matrix',
+          html: `
+            <p class="mode-preview-kicker">Preview — Matrix</p>
+            <h3>MATRIX PROCESS LOOP DETECTED</h3>
+            <p class="mode-preview-sub">POWER SOURCE ANOMALY // CONNECT CHARGER</p>
+            <div class="mode-screen-grid matrix-screen">
+              <div class="mode-screen-lines">010101001011001010101110<br/>001100101101001110010111<br/>111001001010101001011001</div>
+              <div class="mode-screen-counter">009873</div>
+            </div>
+          `
+        },
+        vitals: {
+          className: 'mode-vitals',
+          html: `
+            <p class="mode-preview-kicker">Preview — Vitals Monitor</p>
+            <h3>PATIENT POWER STATUS // CRITICAL</h3>
+            <p class="mode-preview-sub">HEART RATE COLLAPSING // CONNECT CHARGER NOW</p>
+            <div class="mode-screen-grid vitals-screen">
+              <div class="ekg-strip">
+                <svg class="ekg-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline points="0,38 30,38 50,38 64,34 72,42 84,14 96,52 110,26 126,38 164,38 178,34 188,44 200,18 214,50 228,28 244,38 300,38" />
+                </svg>
+              </div>
+              <div class="vitals-metrics">
+                <div>HEART RATE <strong>32</strong></div>
+                <div>OXYGEN <strong>84%</strong></div>
+                <div>BATTERY <strong>7%</strong></div>
+              </div>
+            </div>
+          `
+        },
+        mission: {
+          className: 'mode-mission',
+          html: `
+            <p class="mode-preview-kicker">Preview — Mission Impossible</p>
+            <h3>SELF-DESTRUCT SEQUENCE INITIATED...</h3>
+            <p class="mode-preview-sub">THIS MESSAGE WILL SELF-DESTRUCT IN 4 SECONDS</p>
+            <div class="mode-screen-grid mission-screen">
+              <div class="mode-screen-badge">CLASSIFIED</div>
+              <div class="mode-screen-counter">04</div>
+              <div class="mode-screen-foot">ATTACH DEVICE TO POWER TO ABORT EMERGENCY LOCKDOWN.</div>
+            </div>
+          `
+        },
+        starship: {
+          className: 'mode-starship',
+          html: `
+            <p class="mode-preview-kicker">Preview — Starship</p>
+            <h3>STARSHIP LIFE SUPPORT // LONG-RANGE HUD</h3>
+            <p class="mode-preview-sub">CRITICAL LIFE SUPPORT FAILURE</p>
+            <div class="mode-screen-grid starship-screen">
+              <div class="radar-wrap">
+                <div class="radar-ring r1"></div>
+                <div class="radar-ring r2"></div>
+                <div class="radar-ring r3"></div>
+                <div class="radar-sweep"></div>
+              </div>
+              <div>OXYGEN RESERVE <strong>18%</strong></div>
+              <div>POWER CELLS <strong>2</strong></div>
+              <div>HAB STABILITY <strong>29%</strong></div>
+              <div class="mode-screen-foot">ROUTE AUX POWER NOW // CONNECT CHARGER</div>
+            </div>
+          `
+        },
+        reactor: {
+          className: 'mode-reactor',
+          html: `
+            <p class="mode-preview-kicker">Preview — Reactor</p>
+            <h3>REACTOR CONTROL // CONTAINMENT GRID</h3>
+            <p class="mode-preview-sub">RUNAWAY REACTION DETECTED</p>
+            <div class="mode-screen-grid reactor-screen">
+              <div>CORE TEMP <strong>1540C</strong></div>
+              <div>PRESSURE <strong>244%</strong></div>
+              <div>CONTAINMENT <strong>11%</strong></div>
+              <div class="containment-bar"><span></span></div>
+              <div class="mode-screen-foot">CONTAINMENT BREACH IN 2</div>
+            </div>
+          `
+        }
+      };
+
+      const buttons = [...document.querySelectorAll('.mode-item')];
+      const preview = document.getElementById('mode-preview');
+      const previewContent = document.getElementById('mode-preview-content');
+
+      function setMode(mode) {
+        const config = MODE_CONTENT[mode];
+        if (!config) return;
+
+        buttons.forEach((btn) => {
+          btn.classList.toggle('is-active', btn.dataset.mode === mode);
+        });
+
+        preview.classList.remove('mode-matrix', 'mode-vitals', 'mode-mission', 'mode-starship', 'mode-reactor');
+        preview.classList.add(config.className);
+        previewContent.innerHTML = config.html;
+      }
+
+      buttons.forEach((button) => {
+        button.addEventListener('mouseenter', () => setMode(button.dataset.mode));
+        button.addEventListener('focus', () => setMode(button.dataset.mode));
+        button.addEventListener('click', () => setMode(button.dataset.mode));
+      });
+
+      const heroPulse = document.querySelector('.hero-pulse-text');
+      const scrollHeader = document.getElementById('scroll-header');
+      const heroSection = document.getElementById('hero-section');
+
+      function updateScrollEffects() {
+        const y = window.scrollY || 0;
+
+        if (heroPulse) {
+          const pulse = Math.min(1, y / 280); // more obvious, tied directly to scroll depth
+          heroPulse.style.setProperty('--pulse', pulse.toFixed(3));
+        }
+
+        if (scrollHeader && heroSection) {
+          const heroBottom = heroSection.offsetTop + heroSection.offsetHeight;
+          const passedHero = y > heroBottom - 220;
+          scrollHeader.classList.toggle('is-visible', passedHero);
+          scrollHeader.setAttribute('aria-hidden', passedHero ? 'false' : 'true');
+        }
+      }
+
+      window.addEventListener('scroll', updateScrollEffects, { passive: true });
+      window.addEventListener('resize', updateScrollEffects);
+      updateScrollEffects();
+
+      setMode('matrix');
+    </script>
   </body>
 </html>
