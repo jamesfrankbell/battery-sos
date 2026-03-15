@@ -28,9 +28,11 @@ const DOWNLOADS_DIR = path.resolve(__dirname, '..', 'mac', 'dist');
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
+  '.dmg': 'application/x-apple-diskimage',
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.sha256': 'text/plain; charset=utf-8',
   '.svg': 'image/svg+xml',
 };
 
@@ -51,10 +53,13 @@ function sendHtml(res, html, statusCode = 200) {
   res.end(html);
 }
 
-function sendFile(res, filePath) {
+function sendFile(res, filePath, extraHeaders = {}) {
   const extension = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[extension] || 'application/octet-stream';
-  res.writeHead(200, { 'content-type': contentType });
+  res.writeHead(200, {
+    'content-type': contentType,
+    ...extraHeaders,
+  });
   fs.createReadStream(filePath).pipe(res);
 }
 
@@ -277,7 +282,12 @@ function handleDownloads(res, pathname) {
     return true;
   }
 
-  sendFile(res, filePath);
+  const downloadName = path.basename(filePath);
+  sendFile(res, filePath, {
+    'content-disposition': `attachment; filename="${downloadName}"`,
+    'x-content-type-options': 'nosniff',
+    'cache-control': 'public, max-age=300',
+  });
   return true;
 }
 
