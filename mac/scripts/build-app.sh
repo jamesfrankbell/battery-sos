@@ -52,6 +52,17 @@ xcrun --sdk macosx swiftc \
   -o "$APP_PATH/Contents/MacOS/$EXECUTABLE_NAME"
 chmod +x "$APP_PATH/Contents/MacOS/$EXECUTABLE_NAME"
 
+# Check the compiled release, not just the source: the original public build
+# accidentally sent customer checkout requests to their own localhost.
+if ! strings "$APP_PATH/Contents/MacOS/$EXECUTABLE_NAME" | grep -Fx 'https://pay.batterysos.app' >/dev/null; then
+  echo "Release blocked: compiled app does not contain the production billing URL." >&2
+  exit 1
+fi
+if strings "$APP_PATH/Contents/MacOS/$EXECUTABLE_NAME" | grep -F 'http://127.0.0.1:8787' >/dev/null; then
+  echo "Release blocked: compiled app contains the development billing URL." >&2
+  exit 1
+fi
+
 ditto "$SPARKLE_FRAMEWORK" "$APP_PATH/Contents/Frameworks/$(basename "$SPARKLE_FRAMEWORK")"
 
 cat > "$APP_PATH/Contents/Info.plist" <<EOF

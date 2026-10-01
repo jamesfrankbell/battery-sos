@@ -2714,7 +2714,7 @@ private final class OverlayManager {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let thresholdDefaultsKey = "BatterySOS.warningThresholdPercent"
     private let soundMutedDefaultsKey = "BatterySOS.soundEffectsMuted"
-    private let billingBaseURL = URL(string: ProcessInfo.processInfo.environment["BATTERY_SOS_BILLING_URL"] ?? "http://127.0.0.1:8787")!
+    private let billingBaseURL = URL(string: ProcessInfo.processInfo.environment["BATTERY_SOS_BILLING_URL"] ?? "https://pay.batterysos.app")!
     private let monetization = MonetizationManager()
     private let overlay = OverlayManager()
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)

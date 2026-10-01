@@ -7,3 +7,4 @@ mac/dist/*
 !mac/dist/battery-sos-macos.dmg.sha256
 .env
 third_party/
+mac/recovery-release/

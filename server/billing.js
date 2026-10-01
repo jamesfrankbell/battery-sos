@@ -2,7 +2,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DATA_DIR = path.resolve(__dirname, '..', 'data');
+// Production must point this at a persistent volume; Render's deployment
+// filesystem is replaced on each deploy.
+const DATA_DIR = process.env.BATTERY_SOS_DATA_DIR
+  ? path.resolve(process.env.BATTERY_SOS_DATA_DIR)
+  : path.resolve(__dirname, '..', 'data');
 const BILLING_FILE = path.join(DATA_DIR, 'billing-data.json');
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
