@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { createEmailSender } = require('./email-sender');
 
 // Production must point this at a persistent volume; Render's deployment
 // filesystem is replaced on each deploy.
@@ -15,18 +16,40 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'http://127.0.0.1:8787';
 const LICENSE_SECRET = process.env.LICENSE_SECRET || 'change-me-before-production';
 const BILLING_ADMIN_TOKEN = process.env.BILLING_ADMIN_TOKEN || '';
+const TRANSFER_LIMIT = 3;
+const TRANSFER_WINDOW_MS = 365 * 24 * 60 * 60 * 1000;
+const RECOVERY_TTL_MS = 15 * 60 * 1000;
+const RECOVERY_EMAIL_LIMIT = 5;
+const RECOVERY_IP_LIMIT = 20;
+const RECOVERY_CONFIRM_LIMIT = 8;
+const RECOVERY_WINDOW_MS = 60 * 60 * 1000;
+const RECOVERY_ACCEPTED_MESSAGE = 'If a license is associated with that email, a recovery message is on its way. It expires in 15 minutes and can be used once.';
+const RECOVERY_INVALID_MESSAGE = 'That recovery link or code is invalid or has expired.';
+const RECOVERY_RATE_MESSAGE = 'Too many recovery attempts. Please wait and try again.';
+const devEmailOutbox = [];
+let nowFn = () => new Date();
 
 const EMPTY_STATE = {
   licenses: {},
   sessions: {},
+  recoveryChallenges: {},
+  recoveryRates: {},
 };
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function nowDate() {
+  return nowFn();
+}
+
 function nowIso() {
-  return new Date().toISOString();
+  return nowDate().toISOString();
+}
+
+function setNowForTests(fn) {
+  nowFn = typeof fn === 'function' ? fn : () => new Date();
 }
 
 function normalizeText(value) {
@@ -77,6 +100,8 @@ function ensureBillingFile() {
     for (const [session, key] of Object.entries(parsed.sessions)) {
       if (typeof key !== 'string' || !Object.hasOwn(parsed.licenses, key) || parsed.licenses[key].sessionId !== session) throw new Error();
     }
+    if (!dictionary(parsed.recoveryChallenges)) parsed.recoveryChallenges = {};
+    if (!dictionary(parsed.recoveryRates)) parsed.recoveryRates = {};
     return parsed;
   } catch {
     throw new Error('License storage is invalid; the original file has been preserved. Restore a verified backup before restarting.');
@@ -191,6 +216,9 @@ function issueLicenseForSession(session) {
     email,
     originalMachineName: machineName,
     boundMachineName: '',
+    boundDeviceId: '',
+    transfers: [],
+    transferAnchorDeviceId: '',
   };
   persist(next);
   return key;
@@ -228,33 +256,118 @@ async function finalizeCheckoutSession(sessionId) {
   return { ready: true, key, message: 'License issued.' };
 }
 
-function verifyLicenseKey(licenseKey, machineName) {
+function parseDeviceId(value) {
+  const text = normalizeText(value).toLowerCase();
+  if (!text) return { present: false, id: '' };
+  if (!/^[a-f0-9]{64}$/.test(text)) return { present: true, id: '', invalid: true };
+  return { present: true, id: text, invalid: false };
+}
+
+function recentTransferCount(license, now = nowDate()) {
+  const list = Array.isArray(license.transfers) ? license.transfers : [];
+  return list.filter((item) => {
+    const at = Date.parse(item && item.at);
+    return Number.isFinite(at) && now.getTime() - at < TRANSFER_WINDOW_MS;
+  }).length;
+}
+
+function transfersRemaining(license, now = nowDate()) {
+  return Math.max(0, TRANSFER_LIMIT - recentTransferCount(license, now));
+}
+
+function verifyLicenseKey(licenseKey, machineName, deviceId) {
   const normalized = normalizeKey(licenseKey);
-  if (!normalized) {
-    return { valid: false, message: 'License key is required.' };
-  }
-
+  if (!normalized) return { valid: false, message: 'License key is required.' };
   const license = Object.hasOwn(store.licenses, normalized) ? store.licenses[normalized] : null;
-  if (!license) {
-    return { valid: false, message: 'License key not found.' };
-  }
+  if (!license) return { valid: false, message: 'License key not found.' };
+  const device = parseDeviceId(deviceId);
+  if (device.invalid) return { valid: false, message: 'This Mac could not be identified for activation. Try again.' };
+  if (device.present) return activateDevice(normalized, license, device.id, normalizeText(machineName));
+  return activateLegacyMachine(normalized, license, normalizeText(machineName));
+}
 
-  const normalizedMachine = normalizeText(machineName);
-  if (!normalizedMachine) return { valid: false, message: 'Machine name is required for activation.' };
-  if (license.boundMachineName && normalizedMachine && license.boundMachineName !== normalizedMachine) {
+function activateLegacyMachine(key, license, machineName) {
+  if (normalizeText(license.boundDeviceId)) {
     return { valid: false, message: 'This key is already activated on another machine.' };
   }
-
-  if (!license.boundMachineName && normalizedMachine) {
+  if (!machineName) return { valid: false, message: 'Machine name is required for activation.' };
+  if (license.boundMachineName && license.boundMachineName !== machineName) {
+    return { valid: false, message: 'This key is already activated on another machine.' };
+  }
+  if (!license.boundMachineName) {
     const next = clone(store);
-    next.licenses[normalized].boundMachineName = normalizedMachine;
+    next.licenses[key].boundMachineName = machineName;
     persist(next);
   }
+  return { valid: true, message: 'License key is valid.', normalizedKey: key, transfersRemaining: transfersRemaining(license) };
+}
 
+function activateDevice(key, license, deviceId, machineName) {
+  const bound = normalizeText(license.boundDeviceId).toLowerCase();
+  if (bound) {
+    if (bound === deviceId) {
+      return { valid: true, message: 'License key is valid.', normalizedKey: key, transfersRemaining: transfersRemaining(license) };
+    }
+    return { valid: false, message: 'This key is already activated on another Mac. Deactivate it there before transferring.' };
+  }
+  if (normalizeText(license.boundMachineName)) {
+    if (!machineName || machineName !== license.boundMachineName) {
+      return { valid: false, message: 'This key is already activated on another machine.' };
+    }
+    const next = clone(store);
+    next.licenses[key].boundDeviceId = deviceId;
+    persist(next);
+    return { valid: true, message: 'License key is valid.', normalizedKey: key, migrated: true, transfersRemaining: transfersRemaining(license) };
+  }
+  const anchor = normalizeText(license.transferAnchorDeviceId).toLowerCase();
+  const isTransfer = Boolean(anchor) && anchor !== deviceId;
+  if (isTransfer && recentTransferCount(license) >= TRANSFER_LIMIT) {
+    return { valid: false, message: 'This key has already been transferred 3 times in the past year.', transfersRemaining: 0 };
+  }
+  const next = clone(store);
+  const record = next.licenses[key];
+  record.boundDeviceId = deviceId;
+  if (machineName) record.boundMachineName = machineName;
+  if (isTransfer) {
+    if (!Array.isArray(record.transfers)) record.transfers = [];
+    record.transfers.push({ at: nowIso(), fromDeviceId: anchor, toDeviceId: deviceId });
+  }
+  record.transferAnchorDeviceId = '';
+  persist(next);
+  return { valid: true, message: 'License key is valid.', normalizedKey: key, transfersRemaining: transfersRemaining(record) };
+}
+
+function deactivateDevice(licenseKey, deviceId, machineName) {
+  const normalized = normalizeKey(licenseKey);
+  if (!normalized) {
+    const error = new Error('License key is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const license = Object.hasOwn(store.licenses, normalized) ? store.licenses[normalized] : null;
+  if (!license) return { deactivated: false, message: 'License key not found.' };
+  const device = parseDeviceId(deviceId);
+  if (device.invalid || !device.present) {
+    return { deactivated: false, message: 'This Mac could not be identified for deactivation. Try again.' };
+  }
+  const boundDevice = normalizeText(license.boundDeviceId).toLowerCase();
+  const boundName = normalizeText(license.boundMachineName);
+  const name = normalizeText(machineName);
+  let matches = false;
+  if (boundDevice) matches = device.id === boundDevice;
+  else if (boundName) matches = Boolean(name) && name === boundName;
+  if (!matches) return { deactivated: false, message: 'This Mac is not the one activated for this license.' };
+  const next = clone(store);
+  const record = next.licenses[normalized];
+  record.transferAnchorDeviceId = boundDevice || device.id;
+  record.boundDeviceId = '';
+  record.boundMachineName = '';
+  record.deactivatedAt = nowIso();
+  persist(next);
   return {
-    valid: true,
-    message: 'License key is valid.',
-    normalizedKey: normalized,
+    deactivated: true,
+    message: 'This Mac is deactivated. Activating a different Mac uses one of 3 transfers per year. Activating this Mac again does not.',
+    transfersRemaining: transfersRemaining(record),
   };
 }
 
@@ -481,6 +594,8 @@ function recoverLicenseByEmail(email) {
       key: license.key,
       createdAt: license.createdAt,
       boundMachineName: license.boundMachineName || '',
+      deviceBound: Boolean(normalizeText(license.boundDeviceId)),
+      transfersRemaining: transfersRemaining(license),
     })),
   };
 }
@@ -490,8 +605,8 @@ function getBillingAdminSummary() {
   return {
     totals: {
       licenses: licenses.length,
-      bound: licenses.filter((item) => normalizeText(item.boundMachineName)).length,
-      unbound: licenses.filter((item) => !normalizeText(item.boundMachineName)).length,
+      bound: licenses.filter((item) => normalizeText(item.boundMachineName) || normalizeText(item.boundDeviceId)).length,
+      unbound: licenses.filter((item) => !normalizeText(item.boundMachineName) && !normalizeText(item.boundDeviceId)).length,
       sessions: Object.keys(store.sessions).length,
     },
     recent: licenses
@@ -503,8 +618,305 @@ function getBillingAdminSummary() {
         createdAt: license.createdAt,
         originalMachineName: license.originalMachineName || '',
         boundMachineName: license.boundMachineName || '',
+        deviceBound: Boolean(normalizeText(license.boundDeviceId)),
+        transfersRemaining: transfersRemaining(license),
       })),
   };
+}
+
+function normalizeEmail(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
+}
+
+function sha256(text) {
+  return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+function hashesEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length || a.length === 0) return false;
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[character]));
+}
+
+function licensesForEmail(email) {
+  return Object.values(store.licenses)
+    .filter((license) => normalizeEmail(license.email) === email)
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
+
+function currentEmailSender() {
+  return createEmailSender({
+    provider: process.env.BILLING_EMAIL_PROVIDER || 'console',
+    fetchImpl: global.fetch,
+    httpUrl: process.env.BILLING_EMAIL_HTTP_URL || '',
+    httpToken: process.env.BILLING_EMAIL_HTTP_TOKEN || '',
+    onConsole(message) { devEmailOutbox.push(message); },
+  });
+}
+
+function getDevEmailOutbox() {
+  return devEmailOutbox.map((item) => ({ ...item }));
+}
+
+function clearDevEmailOutbox() {
+  devEmailOutbox.length = 0;
+}
+
+function rateBuckets({ email, ip, kind }) {
+  const buckets = [];
+  if (ip) buckets.push({ key: `ip:${ip}`, limit: RECOVERY_IP_LIMIT, windowMs: RECOVERY_WINDOW_MS });
+  if (email) {
+    buckets.push({
+      key: `${kind}:${email}`,
+      limit: kind === 'confirm' ? RECOVERY_CONFIRM_LIMIT : RECOVERY_EMAIL_LIMIT,
+      windowMs: RECOVERY_WINDOW_MS,
+    });
+  }
+  return buckets;
+}
+
+function assertAndConsumeRates(buckets) {
+  if (buckets.length === 0) return;
+  const now = nowDate().getTime();
+  const within = (entry) => {
+    const start = entry ? Date.parse(entry.windowStart) : NaN;
+    return Number.isFinite(start) && now - start < RECOVERY_WINDOW_MS;
+  };
+  for (const bucket of buckets) {
+    const entry = store.recoveryRates?.[bucket.key];
+    if (within(entry) && entry.count >= bucket.limit) {
+      const error = new Error(RECOVERY_RATE_MESSAGE);
+      error.statusCode = 429;
+      throw error;
+    }
+  }
+  const next = clone(store);
+  if (!next.recoveryRates) next.recoveryRates = {};
+  for (const bucket of buckets) {
+    const entry = next.recoveryRates[bucket.key];
+    if (!within(entry)) next.recoveryRates[bucket.key] = { count: 1, windowStart: new Date(now).toISOString() };
+    else next.recoveryRates[bucket.key] = { count: entry.count + 1, windowStart: entry.windowStart };
+  }
+  persist(next);
+}
+
+function purgeExpiredChallenges(next) {
+  const now = nowDate().getTime();
+  for (const [id, challenge] of Object.entries(next.recoveryChallenges || {})) {
+    if (!challenge || !(Date.parse(challenge.expiresAt) > now)) delete next.recoveryChallenges[id];
+  }
+}
+
+function createRecoveryMaterial(email) {
+  const exp = nowDate().getTime() + RECOVERY_TTL_MS;
+  const nonce = crypto.randomBytes(16).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ email, exp, nonce })).toString('base64url');
+  const signature = crypto.createHmac('sha256', LICENSE_SECRET).update(payload).digest('base64url');
+  const token = `${payload}.${signature}`;
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(8);
+  let code = '';
+  for (let index = 0; index < 8; index += 1) code += alphabet[bytes[index] % alphabet.length];
+  return { token, code, exp };
+}
+
+function readRecoveryToken(token) {
+  const text = String(token || '');
+  const dot = text.lastIndexOf('.');
+  if (dot <= 0) return null;
+  const payload = text.slice(0, dot);
+  const signature = text.slice(dot + 1);
+  const expected = crypto.createHmac('sha256', LICENSE_SECRET).update(payload).digest('base64url');
+  const supplied = Buffer.from(signature);
+  const required = Buffer.from(expected);
+  if (supplied.length !== required.length || supplied.length === 0 || !crypto.timingSafeEqual(supplied, required)) return null;
+  let parsed;
+  try { parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return null; }
+  if (!parsed || typeof parsed.email !== 'string' || typeof parsed.exp !== 'number' || typeof parsed.nonce !== 'string') return null;
+  if (nowDate().getTime() > parsed.exp) return null;
+  return parsed;
+}
+
+function recoveryMessage(link, code) {
+  return [
+    'Battery SOS received a request to show the license key for this email.',
+    '',
+    'Open this one-time link (expires in 15 minutes):',
+    link,
+    '',
+    `Or enter this code in Battery SOS recovery: ${code}`,
+    '',
+    'If you did not ask for this, ignore this message. The key is not included here.',
+  ].join('\n');
+}
+
+function acceptedRecovery() {
+  return { accepted: true, message: RECOVERY_ACCEPTED_MESSAGE };
+}
+
+function invalidRecovery() {
+  return { revealed: false, message: RECOVERY_INVALID_MESSAGE };
+}
+
+function publicLicense(license) {
+  return {
+    key: license.key,
+    createdAt: license.createdAt,
+    boundMachineName: license.boundMachineName || '',
+    deviceBound: Boolean(normalizeText(license.boundDeviceId)),
+    transfersRemaining: transfersRemaining(license),
+  };
+}
+
+function revealLicenses(email, challengeId) {
+  const matches = licensesForEmail(email);
+  const next = clone(store);
+  if (next.recoveryChallenges) delete next.recoveryChallenges[challengeId];
+  persist(next);
+  return { revealed: true, message: 'License recovery confirmed.', licenses: matches.map(publicLicense) };
+}
+
+async function requestLicenseRecovery({ email, ip } = {}) {
+  const normalized = normalizeEmail(email);
+  if (!isEmail(normalized)) {
+    const error = new Error('Enter the email address used at checkout.');
+    error.statusCode = 400;
+    throw error;
+  }
+  assertAndConsumeRates(rateBuckets({ email: normalized, ip: normalizeText(ip), kind: 'request' }));
+  const matches = licensesForEmail(normalized);
+  if (matches.length === 0) {
+    crypto.createHmac('sha256', LICENSE_SECRET).update(`absent|${normalized}`).digest();
+    return acceptedRecovery();
+  }
+  const material = createRecoveryMaterial(normalized);
+  const id = crypto.randomBytes(16).toString('hex');
+  const next = clone(store);
+  if (!next.recoveryChallenges) next.recoveryChallenges = {};
+  purgeExpiredChallenges(next);
+  for (const [challengeId, challenge] of Object.entries(next.recoveryChallenges)) {
+    if (challenge && challenge.email === normalized) delete next.recoveryChallenges[challengeId];
+  }
+  next.recoveryChallenges[id] = {
+    email: normalized,
+    tokenHash: sha256(material.token),
+    codeHash: sha256(`${normalized}|${material.code}`),
+    expiresAt: new Date(material.exp).toISOString(),
+  };
+  persist(next);
+  const link = `${PUBLIC_BASE_URL}/billing/recover?token=${encodeURIComponent(material.token)}`;
+  const text = recoveryMessage(link, material.code);
+  try {
+    await currentEmailSender().send({
+      to: normalized,
+      subject: 'Battery SOS license recovery',
+      text,
+      html: escapeHtml(text).replace(/\n/g, '<br>'),
+    });
+  } catch {
+    const rollback = clone(store);
+    if (rollback.recoveryChallenges) delete rollback.recoveryChallenges[id];
+    try { persist(rollback); } catch { /* keep the generic response either way */ }
+  }
+  return acceptedRecovery();
+}
+
+function confirmLicenseRecovery({ email, code, token, ip } = {}) {
+  const tokenText = normalizeText(token);
+  if (tokenText) return confirmRecoveryToken(tokenText, ip);
+  return confirmRecoveryCode(email, code, ip);
+}
+
+function confirmRecoveryToken(token, ip) {
+  const parsed = readRecoveryToken(token);
+  const email = parsed ? normalizeEmail(parsed.email) : '';
+  const buckets = rateBuckets({ email, ip: normalizeText(ip), kind: 'confirm' });
+  if (!email && ip) buckets.push({ key: `confirm-ip:${normalizeText(ip)}`, limit: RECOVERY_CONFIRM_LIMIT, windowMs: RECOVERY_WINDOW_MS });
+  assertAndConsumeRates(buckets);
+  if (!parsed || !isEmail(email)) return invalidRecovery();
+  const hash = sha256(token);
+  const entry = Object.entries(store.recoveryChallenges || {}).find(([, challenge]) => (
+    challenge && challenge.email === email && hashesEqual(challenge.tokenHash, hash)
+  ));
+  if (!entry) return invalidRecovery();
+  const [id, challenge] = entry;
+  if (!(Date.parse(challenge.expiresAt) > nowDate().getTime())) return invalidRecovery();
+  return revealLicenses(email, id);
+}
+
+function confirmRecoveryCode(email, code, ip) {
+  const normalized = normalizeEmail(email);
+  if (!isEmail(normalized)) {
+    const error = new Error('Enter the email address used at checkout.');
+    error.statusCode = 400;
+    throw error;
+  }
+  assertAndConsumeRates(rateBuckets({ email: normalized, ip: normalizeText(ip), kind: 'confirm' }));
+  const cleanCode = normalizeText(code).toUpperCase().replace(/\s+/g, '');
+  if (!/^[A-Z2-9]{8}$/.test(cleanCode)) return invalidRecovery();
+  const hash = sha256(`${normalized}|${cleanCode}`);
+  const entry = Object.entries(store.recoveryChallenges || {}).find(([, challenge]) => (
+    challenge && challenge.email === normalized && hashesEqual(challenge.codeHash, hash)
+  ));
+  if (!entry) return invalidRecovery();
+  const [id, challenge] = entry;
+  if (!(Date.parse(challenge.expiresAt) > nowDate().getTime())) return invalidRecovery();
+  return revealLicenses(normalized, id);
+}
+
+function renderRecoveryPage(result) {
+  const revealed = Boolean(result && result.revealed && Array.isArray(result.licenses));
+  const accepted = Boolean(result && result.accepted);
+  const invalid = Boolean(result && result.revealed === false);
+  const message = escapeHtml((result && result.message) || '');
+  let body;
+  if (revealed) {
+    const keys = result.licenses.map((license) => `<pre>${escapeHtml(license.key)}</pre>`).join('');
+    body = `<h1>License key</h1><p>${message}</p>${keys}<p>Enter the key in Battery SOS → Settings → Enter License Key… This page does not deactivate a Mac.</p><p><a href="/billing/recover">Start over</a></p>`;
+  } else if (accepted || invalid) {
+    body = `<h1>License recovery</h1><p>${message}</p><p><a href="/billing/recover">Start over</a></p>`;
+  } else {
+    body = `<h1>License recovery</h1>
+      <p>Enter the email from your Battery SOS purchase. If a license exists, we email a one-time link and code. That message never includes the key.</p>
+      <form method="post" action="/billing/recover">
+        <label>Purchase email<br><input name="email" type="email" autocomplete="email" required></label>
+        <button type="submit">Email me a recovery link</button>
+      </form>
+      <form method="post" action="/billing/recover/confirm">
+        <label>Purchase email<br><input name="email" type="email" autocomplete="email" required></label>
+        <label>Recovery code<br><input name="code" autocomplete="one-time-code" required></label>
+        <button type="submit">Show my license key</button>
+      </form>`;
+  }
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Battery SOS License Recovery</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#0f1116; color:#e9eef7; margin:0; padding:40px; }
+    .card { max-width:680px; margin:0 auto; background:#181d27; border:1px solid #2b3344; border-radius:14px; padding:28px; }
+    h1 { margin-top:0; font-size:30px; }
+    p, label { color:#b9c3d7; font-size:16px; line-height:1.5; }
+    form { margin:20px 0; }
+    input { width:100%; box-sizing:border-box; margin:8px 0 14px; padding:10px; border-radius:8px; border:1px solid #2b3344; background:#0b0f17; color:#e9eef7; }
+    button { background:#2d6cdf; color:#fff; border:none; border-radius:8px; padding:10px 16px; cursor:pointer; font-weight:600; }
+    pre { background:#0b0f17; color:#7cf58c; font-size:24px; font-weight:700; padding:16px; border-radius:10px; overflow:auto; }
+    a { color:#9ebcff; }
+  </style>
+</head>
+<body><div class="card">${body}</div></body>
+</html>`;
 }
 
 function isValidAdminToken(token) {
@@ -523,16 +935,23 @@ function getBillingConfig() {
 }
 
 module.exports = {
+  clearDevEmailOutbox,
+  confirmLicenseRecovery,
   createCheckoutSession,
+  deactivateDevice,
   finalizeCheckoutSession,
   getBillingAdminSummary,
   getBillingConfig,
+  getDevEmailOutbox,
   getEnvDiagnostics,
   getLicenseBySessionId,
   handleStripeWebhook,
   isValidAdminToken,
   recoverLicenseByEmail,
   renderCancelPage,
+  renderRecoveryPage,
   renderSuccessPage,
+  requestLicenseRecovery,
+  setNowForTests,
   verifyLicenseKey,
 };

@@ -17,8 +17,9 @@ Build both Swift source files through the supported bundle script:
 VERSION=1.0.1 BUILD_NUMBER=YYYYMMDDHHMM DIST_DIR=/tmp/battery-sos-YYYYMMDDHHMM mac/scripts/build-app.sh
 ```
 
-The default warning remains 1%, and sound preferences retain their existing
-behavior. `Test SOS` works without a battery, showing unknown battery percentage
+The default warning remains 1%. Calm Alerts holds the full-screen pulse steady, skips decorative flashing, and plays the selected theme at 40% of its volume. Theme Volume is stored per mode from Off through 100% and defaults to 100%. Mute still wins. The first launch explains the emergency threshold, Pro early heads-up, snooze's 1% override, and that charge reminders are reminders only. Settings → How Warnings Work… shows that text again.
+
+`Test SOS` works without a battery, showing unknown battery percentage
 rather than inventing a value. Closing a preview ends it. A low-battery warning
 can return on the next sample after preview dismissal; this preserves the actual
 warning behavior. Sleep ends previews and suppresses alerts until wake, when a
@@ -131,6 +132,8 @@ export BATTERY_SOS_BILLING_URL="https://yourdomain.com"
 - The menu also includes `Test SOS` so you can trigger the flashing overlay on demand.
 - The menu includes `Settings -> Warning Percentage` where you can choose `1%` through `10%`.
 - The menu includes `Settings -> Mute Sound Effects` with a checkmark toggle.
+- The menu includes `Settings -> Calm Alerts` and `Settings -> Theme Volume` (Off, 25%, 50%, 75%, 100% for each mode).
+- The menu includes `Settings -> Deactivate This Mac…` (3 transfers to a different Mac per year) and `Settings -> Email Me My License Key…`.
 - The menu includes `Settings -> Start at Login` (works when running as installed `.app` bundle).
 - Monetization behavior:
   - `Default Warning` is free.

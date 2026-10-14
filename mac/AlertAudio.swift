@@ -111,6 +111,7 @@ enum AlertAudioSynthesis {
 protocol AlertAudioOutput: AnyObject {
     func play(_ cue: AlertAudioCue, looping: Bool)
     func stop()
+    func setOutputGain(_ gain: Float)
 }
 
 // Mute preserves a requested loop, never replays an old one-shot, and stop clears it.
@@ -130,6 +131,10 @@ final class AlertAudioPlayback {
         isMuted = muted
         if muted { output.stop() }
         else if looping, let cue { output.play(cue, looping: true) }
+    }
+    func setGain(_ gain: Double) {
+        let finite = gain.isFinite ? gain : 1
+        output.setOutputGain(Float(min(1, max(0, finite))))
     }
     func stop() {
         cue = nil

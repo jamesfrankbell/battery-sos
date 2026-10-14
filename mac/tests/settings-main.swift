@@ -72,6 +72,51 @@ func data(_ text: String) -> Data { Data(text.utf8) }
         case .success: fatalError("failed HTTP checkout accepted")
         }
         print("PASS checkout URL and HTTP failure handling")
-        print("4 settings/response test groups passed")
+
+        expect(DeviceIdentityHash.hash(platformUUID: "  ") == nil, "blank hardware id is not hashed")
+        expect(DeviceIdentityHash.hash(platformUUID: "TEST-PLATFORM-UUID") == "c3ec442e7419c89b9765802c8b97ccc01d450e6697707a907fd0517f1ec31e9d", "stable hardware hash")
+        let device = DeviceIdentityHash.hash(platformUUID: "TEST-PLATFORM-UUID")!
+        let verify = LicenseRequest.verifyBody(licenseKey: "BSOS-1", machineName: "Fixture Mac", deviceId: device)
+        expect(verify["deviceId"] == device && verify["machineName"] == "Fixture Mac", "activation sends the hash and the legacy name")
+        expect(LicenseRequest.verifyBody(licenseKey: "BSOS-1", machineName: "Fixture Mac", deviceId: "IOPlatformUUID-raw")["deviceId"] == nil, "raw hardware id is not sent")
+        expect(LicenseRequest.checkoutBody(machineName: "Fixture Mac", deviceId: "nope")["deviceId"] == nil, "checkout omits an invalid device id")
+        let moved = LicenseRequest.deactivateBody(licenseKey: "BSOS-1", machineName: "Fixture Mac", deviceId: device)
+        expect(moved["licenseKey"] == "BSOS-1" && moved["deviceId"] == device, "deactivation identifies this Mac")
+        print("PASS hardware id hash and activation payload")
+
+        let deactivated = BillingClientResponse.deactivation(data: data("{\"deactivated\":true,\"transfersRemaining\":2,\"message\":\"This Mac is deactivated.\"}"), statusCode: 200, error: nil)
+        expect(deactivated.deactivated && deactivated.transfersRemaining == 2, "deactivation accepted")
+        let refused = BillingClientResponse.deactivation(data: data("{\"deactivated\":false,\"message\":\"This Mac is not the one activated for this license.\"}"), statusCode: 200, error: nil)
+        expect(!refused.deactivated && refused.message!.contains("not the one"), "wrong Mac stays activated")
+        let limited = BillingClientResponse.deactivation(data: data("{\"error\":\"Too many recovery attempts. Please wait and try again.\"}"), statusCode: 429, error: nil)
+        expect(!limited.deactivated && limited.transfersRemaining == nil, "failed deactivation does not unlock a transfer")
+        print("PASS deactivation response parsing")
+
+        func near(_ actual: Double, _ expected: Double) -> Bool { abs(actual - expected) < 0.000001 }
+        expect(!AlertComfort(calm: false).reducesMotion && near(AlertComfort(calm: false).outputGain(themeVolume: 0.5), 0.5), "standard presentation keeps theme volume")
+        expect(AlertComfort(calm: true).reducesMotion && near(AlertComfort(calm: true).outputGain(themeVolume: 1), 0.4), "calm reduces motion and softens full volume")
+        expect(near(AlertComfort(calm: true).outputGain(themeVolume: 0.5), 0.2), "calm scales the selected theme volume")
+        expect(near(AlertComfort(calm: true).outputGain(themeVolume: .nan), 0.4), "invalid volume does not silence calm")
+        let comfort = AlertComfortPreferences(defaults: defaults)
+        expect(!comfort.calm && near(comfort.volume(for: .matrixBinary), 1), "calm off and full volume by default")
+        comfort.calm = true
+        comfort.setVolume(0.25, for: .reactorMeltdown)
+        comfort.setVolume(4, for: .defaultWarning)
+        let reloaded = AlertComfortPreferences(defaults: UserDefaults(suiteName: suite)!)
+        expect(reloaded.calm && near(reloaded.volume(for: .reactorMeltdown), 0.25) && near(reloaded.volume(for: .defaultWarning), 1), "calm and per-theme volume persist and clamp")
+        expect(near(reloaded.volume(for: .matrixBinary), 1), "unset themes stay at full volume")
+        defaults.set(Data("broken".utf8), forKey: "BatterySOS.themeVolumes.v1")
+        expect(near(comfort.volume(for: .matrixBinary), 1), "corrupt theme volume falls back")
+        print("PASS calm presentation and per-theme volume")
+
+        expect(FirstRunOnboarding.shouldPresent(defaults: defaults), "first launch shows onboarding")
+        let guide = FirstRunOnboarding.body
+        expect(guide.contains(FirstRunOnboarding.emergencyVersusHeadsUp) && guide.contains("emergency threshold") && guide.contains("early heads-up"), "threshold versus Pro heads-up")
+        expect(guide.contains("1%") && guide.lowercased().contains("overridden"), "snooze 1% override")
+        expect(guide.contains("reminders only") && guide.contains("do not start, stop, or limit charging"), "charge reminders are reminders only")
+        FirstRunOnboarding.markComplete(defaults: defaults)
+        expect(!FirstRunOnboarding.shouldPresent(defaults: UserDefaults(suiteName: suite)!), "onboarding is shown once")
+        print("PASS first-run onboarding")
+        print("8 settings/response test groups passed")
     }
 }
