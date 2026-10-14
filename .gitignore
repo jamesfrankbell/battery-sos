@@ -5,6 +5,25 @@ data/billing-data.json
 mac/dist/*
 !mac/dist/battery-sos-macos.dmg
 !mac/dist/battery-sos-macos.dmg.sha256
-.env
+.env*
 third_party/
 mac/recovery-release/
+
+# Keep local customer data and signing credentials out of WIP commits.
+data/
+**/billing-data.json
+*.p8
+*.p12
+*.pfx
+*.pem
+*.key
+*.keystore
+*.jks
+*.keychain*
+id_rsa*
+id_ed25519*
+keys/
+secrets/
+credentials/
+*private*key*
+*Private*Key*

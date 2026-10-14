@@ -1,70 +1,61 @@
-# LocalFlow Workspace
+# Battery SOS
 
-A self-hosted, local-first app that combines:
-- Phase 1: task management like Things 3 (capture, assign people, due dates, projects, and Kanban flow)
-- Phase 2: document organization like Notion (nested pages, categories, tags, and page editor)
+Battery SOS is a macOS menu-bar app that displays a full-screen warning when a
+MacBook battery reaches the selected percentage. Default Warning is free; the
+five additional themes require the existing $1 Pro license. The warning can be
+dismissed with Escape or its close button and ends when AC power is connected.
 
-## Why this stack
-- No paid services
-- No external database
-- Runs fully on your machine
-- Modular structure for phased expansion
-- Remote access support through LAN/VPN
+The default warning threshold remains 1%, configurable from 1% to 10%. Settings
+retain the selected theme, threshold and mute preference. Test SOS can preview a
+theme on a desktop without a battery. A saved Pro theme falls back to Default
+Warning while locked and remains available after license activation.
 
-## Run
+## Local build and tests
 
-```bash
-npm start
-```
-
-Open: `http://127.0.0.1:8787`
-
-## Remote access (private + free)
-
-### Option A: LAN only
+Use Apple's Command Line Tools, Node 18+ and the vendored Sparkle 2.9.0 framework:
 
 ```bash
-HOST=0.0.0.0 PORT=8787 npm start
+VERSION=1.0.1 BUILD_NUMBER=YYYYMMDDHHMM DIST_DIR=/tmp/battery-sos-YYYYMMDDHHMM mac/scripts/build-app.sh
+node --test server/billing.test.js mac/scripts/prepare-update.test.js
+xcrun swiftc mac/BatteryAlertState.swift mac/tests/main.swift -o /tmp/battery-sos-state-tests
+/tmp/battery-sos-state-tests
+xcrun swiftc -parse-as-library mac/AppPreferences.swift mac/tests/settings-main.swift -o /tmp/battery-sos-settings-tests
+/tmp/battery-sos-settings-tests
 ```
 
-Then open `http://<your-computer-ip>:8787` from devices on your local network.
+Build identifiers and a fresh output directory are required to preserve prior
+review artifacts. Source provenance is embedded before signing. The build target
+is arm64/macOS 13; compilation does not establish runtime compatibility on macOS
+13 or Intel. The default signature is ad-hoc for local review, not distribution.
 
-### Option B: Private remote over VPN (recommended)
-Use Tailscale (free personal tier):
-1. Install Tailscale on your computer and remote device.
-2. Join both to your Tailnet.
-3. Start app with `HOST=0.0.0.0 PORT=8787 npm start`.
-4. Open `http://<tailscale-ip>:8787` from remote devices.
+Tests use isolated stores and mocked payments; they do not charge a card, deploy,
+or exercise real battery hardware. The settings test uses a unique temporary
+UserDefaults suite and removes it afterward. It also verifies theme restoration
+in a fresh process. Native screen, audio, login and hardware behavior require
+separate exact-build testing.
 
-## Data location
-All app data is stored locally at:
-- `data/app-data.json`
+## Components
 
-## Project structure
+- `mac/BatteryEmergencyOverlay.swift`: AppKit menus, overlays, audio and billing UI.
+- `mac/BatteryAlertState.swift`: hardware-independent alert decisions.
+- `mac/AppPreferences.swift`: theme persistence, access labels and billing response handling.
+- `mac/scripts/`: local bundle/DMG packaging and guarded release-metadata preparation.
+- `server/billing.js`: Stripe checkout, paid license issuance and single-process persistence.
+- `server/router.js`: billing API, marketing site and download routes.
+- `website/`: marketing site and public update feed.
 
-- `server/server.js`: HTTP server entrypoint
-- `server/router.js`: API + static routing
-- `server/store.js`: local JSON persistence and domain logic
-- `client/index.html`: single main page UI
-- `client/styles.css`: responsive styling
-- `client/app.js`: app bootstrap and state wiring
-- `client/modules/tasks.js`: Phase 1 task + Kanban module
-- `client/modules/documents.js`: Phase 2 nested pages/documents module
-- `client/modules/api.js`: frontend API client
+The repository also retains legacy LocalFlow task/document modules. Those modules
+are separate from the Battery SOS app experience; do not edit their data while
+testing billing. Production billing requires its configured persistent data
+directory. Never reset corrupt license records or include secrets in evidence.
 
-## API surface
+## Release readiness
 
-- `GET /api/state`
-- `POST /api/tasks`
-- `PATCH /api/tasks/:id`
-- `DELETE /api/tasks/:id`
-- `POST /api/documents`
-- `PATCH /api/documents/:id`
-- `DELETE /api/documents/:id`
+See [mac build/release instructions](mac/README-battery-overlay.md),
+[billing verification](server/README-billing.md) and the
+[current release acceptance checklist](LAUNCH-READY-CHECKLIST.md).
 
-## Phase expansion ideas
-- Auth + per-user workspaces
-- File attachments for documents
-- Search and backlinks
-- Calendar view for tasks
-- Offline-first sync with peer devices
+Public site: https://batterysos.app. Support, Privacy and Terms destinations remain
+unconfirmed; this repository does not invent contact addresses or legal terms.
+Local changes are not deployed, and the public appcast remains unchanged until
+the final artifact, signatures and explicit publication approval are available.

@@ -4,20 +4,6 @@ import IOKit.ps
 import ServiceManagement
 import Sparkle
 
-private struct BatteryState {
-    let percent: Int
-    let isCharging: Bool
-}
-
-private enum OverlayMode: String {
-    case defaultWarning = "Default Warning"
-    case vitalsMonitor = "Vitals Monitor"
-    case selfDestruct = "Self-Destruct"
-    case reactorMeltdown = "Reactor Meltdown"
-    case starshipLifeSupport = "Starship Life Support"
-    case matrixBinary = "Matrix"
-}
-
 private final class MonetizationManager {
     private let licenseKeyStorageKey = "BatterySOS.licenseKey"
     private let defaults = UserDefaults.standard
@@ -52,292 +38,24 @@ private final class MonetizationManager {
 }
 
 private final class AlertTonePlayer {
-    private let sampleRate: Double = 44_100
-    private let engine = AVAudioEngine()
-    private let player = AVAudioPlayerNode()
-    private lazy var sourceNode: AVAudioSourceNode = {
-        AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
-            let abl = UnsafeMutableAudioBufferListPointer(audioBufferList)
-            let isFlatlineOn = self.flatlineEnabled
-            let muted = self.isMuted
-            let frequencyStep = (2.0 * Double.pi * self.flatlineFrequency) / self.sampleRate
-
-            for frame in 0..<Int(frameCount) {
-                let sampleValue: Float
-                if isFlatlineOn && !muted {
-                    let waveform = sin(self.flatlinePhase)
-                    sampleValue = Float(waveform * self.flatlineVolume)
-                    self.flatlinePhase += frequencyStep
-                    if self.flatlinePhase >= 2.0 * Double.pi {
-                        self.flatlinePhase -= 2.0 * Double.pi
-                    }
-                } else {
-                    sampleValue = 0
-                }
-
-                for buffer in abl {
-                    let pointer = buffer.mData!.assumingMemoryBound(to: Float.self)
-                    pointer[frame] = sampleValue
-                }
-            }
-            return noErr
-        }
-    }()
-    private let format: AVAudioFormat
-    private var isReady = false
-    private var isMuted = false
-    private var flatlineEnabled = false
-    private var flatlinePhase = 0.0
-    private var flatlineFrequency = 1380.0
-    private var flatlineVolume = 0.18
-    private var modeLoopTimer: Timer?
-    private var modeLoopTick: Int = 0
+    private let output: AVAlertAudioOutput?
+    private let playback: AlertAudioPlayback?
 
     init() {
-        format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
-        configureAudioEngine()
+        let output = try? AVAlertAudioOutput()
+        self.output = output
+        playback = output.map { AlertAudioPlayback(output: $0) }
     }
-
-    func setMuted(_ muted: Bool) {
-        isMuted = muted
-        if muted {
-            player.stop()
-            player.reset()
-            flatlinePhase = 0
-        }
-    }
-
-    func playBeat() {
-        stopFlatlineTone()
-        playTone(
-            frequency: 1040,
-            duration: 0.11,
-            volume: 0.34,
-            attack: 0.003,
-            release: 0.05,
-            vibratoDepth: 5,
-            vibratoRate: 24,
-            harmonicBlend: 0.22
-        )
-    }
-
-    func startFlatlineLoop() {
-        stopModeLoop()
-        player.stop()
-        player.reset()
-        flatlinePhase = 0
-        flatlineEnabled = true
-    }
-
-    func startDefaultWarningLoop() {
-        startModeLoop(interval: 1.0) { [weak self] tick in
-            guard let self else { return }
-            let base = tick.isMultiple(of: 2) ? 780.0 : 700.0
-            self.playTone(
-                frequency: base,
-                duration: 0.16,
-                volume: 0.24,
-                attack: 0.006,
-                release: 0.07,
-                harmonicBlend: 0.16
-            )
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) { [weak self] in
-                self?.playTone(
-                    frequency: base * 1.13,
-                    duration: 0.10,
-                    volume: 0.20,
-                    attack: 0.004,
-                    release: 0.05,
-                    harmonicBlend: 0.1
-                )
-            }
-        }
-    }
-
-    func startSelfDestructLoop() {
-        startModeLoop(interval: 0.62) { [weak self] tick in
-            guard let self else { return }
-            let phrase: [Double] = [930, 740, 880, 620]
-            let frequency = phrase[tick % phrase.count]
-            self.playTone(
-                frequency: frequency,
-                duration: 0.11,
-                volume: 0.21,
-                attack: 0.004,
-                release: 0.05,
-                vibratoDepth: 2,
-                vibratoRate: 10,
-                harmonicBlend: 0.2
-            )
-        }
-    }
-
-    func startReactorLoop() {
-        startModeLoop(interval: 0.46) { [weak self] tick in
-            guard let self else { return }
-            let frequency = tick.isMultiple(of: 2) ? 670.0 : 540.0
-            self.playTone(
-                frequency: frequency,
-                duration: 0.17,
-                volume: 0.28,
-                attack: 0.004,
-                release: 0.07,
-                harmonicBlend: 0.24
-            )
-        }
-    }
-
-    func startStarshipLoop() {
-        startModeLoop(interval: 1.26) { [weak self] tick in
-            guard let self else { return }
-            self.playTone(
-                frequency: 920,
-                duration: 0.08,
-                volume: 0.18,
-                attack: 0.003,
-                release: 0.05,
-                vibratoDepth: 3,
-                vibratoRate: 13,
-                harmonicBlend: 0.08
-            )
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) { [weak self] in
-                self?.playTone(
-                    frequency: tick.isMultiple(of: 2) ? 620 : 560,
-                    duration: 0.10,
-                    volume: 0.14,
-                    attack: 0.003,
-                    release: 0.06,
-                    harmonicBlend: 0.1
-                )
-            }
-        }
-    }
-
-    func startMatrixLoop() {
-        startModeLoop(interval: 0.72) { [weak self] _ in
-            guard let self else { return }
-            let base: [Double] = [210, 260, 320, 420, 520, 610]
-            let frequency = base.randomElement() ?? 320
-            self.playTone(
-                frequency: frequency,
-                duration: 0.07,
-                volume: 0.20,
-                attack: 0.002,
-                release: 0.035,
-                vibratoDepth: 4,
-                vibratoRate: 19,
-                harmonicBlend: 0.35
-            )
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
-                self?.playTone(
-                    frequency: frequency * Double.random(in: 1.35...1.95),
-                    duration: 0.045,
-                    volume: 0.12,
-                    attack: 0.001,
-                    release: 0.03,
-                    harmonicBlend: 0.4
-                )
-            }
-        }
-    }
-
-    func stopAll() {
-        stopModeLoop()
-        stopFlatlineTone()
-        player.stop()
-        player.reset()
-    }
-
-    private func stopFlatlineTone() {
-        flatlineEnabled = false
-        flatlinePhase = 0
-    }
-
-    private func startModeLoop(interval: TimeInterval, event: @escaping (Int) -> Void) {
-        stopFlatlineTone()
-        stopModeLoop()
-        modeLoopTick = 0
-        event(modeLoopTick)
-
-        modeLoopTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            self.modeLoopTick += 1
-            event(self.modeLoopTick)
-        }
-        if let modeLoopTimer {
-            RunLoop.main.add(modeLoopTimer, forMode: .common)
-        }
-    }
-
-    private func stopModeLoop() {
-        modeLoopTimer?.invalidate()
-        modeLoopTimer = nil
-        modeLoopTick = 0
-    }
-
-    private func configureAudioEngine() {
-        engine.attach(player)
-        engine.attach(sourceNode)
-        engine.connect(player, to: engine.mainMixerNode, format: format)
-        engine.connect(sourceNode, to: engine.mainMixerNode, format: format)
-        engine.mainMixerNode.outputVolume = 0.9
-
-        do {
-            try engine.start()
-            isReady = true
-        } catch {
-            isReady = false
-        }
-    }
-
-    private func playTone(
-        frequency: Double,
-        duration: Double,
-        volume: Double,
-        attack: Double,
-        release: Double,
-        vibratoDepth: Double = 0,
-        vibratoRate: Double = 0,
-        harmonicBlend: Double = 0
-    ) {
-        guard isReady, !isMuted else {
-            return
-        }
-
-        if !engine.isRunning {
-            try? engine.start()
-        }
-
-        let frameCount = AVAudioFrameCount(sampleRate * duration)
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
-              let channel = buffer.floatChannelData?[0] else {
-            return
-        }
-
-        buffer.frameLength = frameCount
-        var phase = 0.0
-
-        for index in 0..<Int(frameCount) {
-            let time = Double(index) / sampleRate
-            let attackGain = min(1.0, time / attack)
-            let releaseGain = min(1.0, max(0.0, duration - time) / release)
-            let envelope = min(attackGain, releaseGain)
-
-            let vibrato = vibratoDepth > 0 ? sin(2.0 * Double.pi * vibratoRate * time) * vibratoDepth : 0
-            let currentFrequency = max(1, frequency + vibrato)
-            phase += (2.0 * Double.pi * currentFrequency) / sampleRate
-
-            let fundamental = sin(phase)
-            let harmonic = sin(phase * 2.02)
-            let blended = (fundamental * (1.0 - harmonicBlend)) + (harmonic * harmonicBlend)
-            channel[index] = Float(blended * volume * envelope)
-        }
-
-        player.scheduleBuffer(buffer, completionHandler: nil)
-        if !player.isPlaying {
-            player.play()
-        }
-    }
+    func setMuted(_ muted: Bool) { playback?.setMuted(muted) }
+    func playBeat() { playback?.play(.monitorBeat) }
+    func startFlatlineLoop() { playback?.play(.monitorFlatline, looping: true) }
+    func startDefaultWarningLoop() { playback?.play(.defaultWarning, looping: true) }
+    func startSelfDestructLoop() { playback?.play(.terminal, looping: true) }
+    func playSelfDestructCue(_ cue: AlertAudioCue) { playback?.play(cue) }
+    func startReactorLoop() { playback?.play(.reactor, looping: true) }
+    func startStarshipLoop() { playback?.play(.starship, looping: true) }
+    func startMatrixLoop() { playback?.play(.matrix, looping: true) }
+    func stopAll() { playback?.stop() }
 }
 
 private func readBatteryState() -> BatteryState? {
@@ -352,6 +70,8 @@ private func readBatteryState() -> BatteryState? {
             continue
         }
 
+        guard description[kIOPSTypeKey as String] as? String == (kIOPSInternalBatteryType as String) else { continue }
+
         guard let current = description[kIOPSCurrentCapacityKey as String] as? Int,
               let max = description[kIOPSMaxCapacityKey as String] as? Int,
               max > 0 else {
@@ -359,6 +79,7 @@ private func readBatteryState() -> BatteryState? {
         }
 
         let percentage = Int((Double(current) / Double(max) * 100.0).rounded())
+        guard (0...100).contains(percentage) else { continue }
         let state = description[kIOPSPowerSourceStateKey as String] as? String
         let chargingFlag = description[kIOPSIsChargingKey as String] as? Bool ?? false
         let charging = chargingFlag || state == (kIOPSACPowerValue as String)
@@ -371,6 +92,7 @@ private func readBatteryState() -> BatteryState? {
 
 private final class OverlayView: NSView {
     var onDismiss: (() -> Void)?
+    var onSnooze: (() -> Void)?
     var mode: OverlayMode = .defaultWarning {
         didSet {
             applyMode()
@@ -828,6 +550,8 @@ private final class OverlayView: NSView {
         }
 
         private let agentName: String
+        var onSound: ((AlertAudioCue) -> Void)?
+        private var countdownAudio = SelfDestructCountdownAudio()
         private var timer: Timer?
         private var stage: Stage = .boot
         private var stageStartedAt: Date = Date()
@@ -860,6 +584,7 @@ private final class OverlayView: NSView {
         func start() {
             stop()
             stage = .boot
+            countdownAudio.reset()
             stageStartedAt = Date()
             lastDocFrameSwitchAt = stageStartedAt
             documentFrameIndex = 0
@@ -987,6 +712,7 @@ private final class OverlayView: NSView {
 
         private func transition(to newStage: Stage) {
             stage = newStage
+            if case .complete = newStage { onSound?(.burnout) }
             stageStartedAt = Date()
             lastDocFrameSwitchAt = stageStartedAt
             applyCurrentStage(elapsed: 0)
@@ -1025,6 +751,7 @@ private final class OverlayView: NSView {
 
             case .countdown:
                 let remaining = max(0, 5 - Int(elapsed.rounded(.down)))
+                if let cue = countdownAudio.cue(for: remaining) { onSound?(cue) }
                 statusLineLabel.stringValue = "SELF-DESTRUCT SEQUENCE INITIATED..."
                 centerTextLabel.stringValue = "\(remaining)"
                 redactionBlockLabel.stringValue = "THIS MESSAGE WILL SELF-DESTRUCT IN \(remaining) SECONDS.\nATTACH DEVICE TO POWER TO ABORT EMERGENCY LOCKDOWN."
@@ -2323,6 +2050,13 @@ private final class OverlayView: NSView {
         return view
     }()
 
+    private lazy var snoozeButton: NSButton = {
+        let button = NSButton(title: "Snooze 5 min · Pro", target: self, action: #selector(snoozeTapped))
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.bezelStyle = .rounded
+        return button
+    }()
+
     private let closeButton: HoverCloseButton = {
         let button = HoverCloseButton(frame: .zero)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -2344,7 +2078,15 @@ private final class OverlayView: NSView {
         addSubview(starshipLifeSupportView)
         addSubview(matrixBinaryView)
         addSubview(closeButton)
+        addSubview(snoozeButton)
+        NSLayoutConstraint.activate([
+            snoozeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
+            snoozeButton.topAnchor.constraint(equalTo: topAnchor, constant: 28)
+        ])
 
+        selfDestructView.onSound = { [weak self] cue in
+            self?.tonePlayer.playSelfDestructCue(cue)
+        }
         ekgView.onBeat = { [weak self] beatIndex, bpm in
             self?.heartRateValueLabel.stringValue = "\(bpm)"
             self?.oxygenValueLabel.stringValue = "\(min(99, 58 + ((beatIndex + 1) * 2)))%"
@@ -2536,6 +2278,10 @@ private final class OverlayView: NSView {
         layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.5).cgColor
     }
 
+    func setSnoozeAvailable(_ available: Bool) { snoozeButton.isHidden = !available }
+
+    @objc private func snoozeTapped() { onSnooze?() }
+
     @objc private func closeTapped() {
         onDismiss?()
     }
@@ -2614,6 +2360,7 @@ private final class OverlayWindowController {
 
 private final class OverlayManager {
     var onDismiss: (() -> Void)?
+    var onSnooze: (() -> Void)?
 
     private var controllers: [OverlayWindowController] = []
     private var pulseTimer: Timer?
@@ -2622,6 +2369,12 @@ private final class OverlayManager {
     private var currentPulseAlpha: CGFloat = 0.5
     private var latestBatteryPercent: Int?
     private var soundMuted = false
+    private var snoozeAvailable = false
+
+    func setSnoozeAvailable(_ available: Bool) {
+        snoozeAvailable = available
+        controllers.forEach { $0.overlayView.setSnoozeAvailable(available) }
+    }
 
     var isVisible: Bool {
         !controllers.isEmpty
@@ -2668,6 +2421,8 @@ private final class OverlayManager {
 
         controllers = NSScreen.screens.map {
             let controller = OverlayWindowController(screen: $0, onDismiss: dismiss)
+            controller.overlayView.setSnoozeAvailable(snoozeAvailable)
+            controller.overlayView.onSnooze = { [weak self] in self?.onSnooze?() }
             controller.overlayView.mode = mode
             controller.setBatteryPercent(latestBatteryPercent)
             controller.overlayView.setSoundMuted(soundMuted)
@@ -2716,15 +2471,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let soundMutedDefaultsKey = "BatterySOS.soundEffectsMuted"
     private let billingBaseURL = URL(string: ProcessInfo.processInfo.environment["BATTERY_SOS_BILLING_URL"] ?? "https://pay.batterysos.app")!
     private let monetization = MonetizationManager()
+    private let themePreferences = ThemePreferences(defaults: .standard)
     private let overlay = OverlayManager()
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
+    private let proPreferences = ProBatteryPreferences(defaults: .standard)
+    private var proSession = ProBatterySession()
+    private var proMenu: NSMenu?
+    private var proMenuSnapshot = ""
+    private var dashboardPanel: NSPanel?
+    private var dashboardLabel: NSTextField?
+    private var noticePanel: NSPanel?
+    private var noticeExpires: Date?
     private var batteryTimer: Timer?
-    private var dismissedUntilRecover = false
-    private var manualTestActive = false
+    private var batteryAlert = BatteryAlertStateMachine()
     private var checkForUpdatesItem: NSMenuItem?
-    private var lastKnownChargingState: Bool?
-    private var thresholdPercent = 1
+    private var thresholdPercent: Int { batteryAlert.thresholdPercent }
     private var soundEffectsMuted = false
     private var currentMode: OverlayMode = .defaultWarning
     private var statusItem: NSStatusItem?
@@ -2750,18 +2512,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         loadSoundPreference()
         overlay.setSoundMuted(soundEffectsMuted)
 
+        overlay.onSnooze = { [weak self] in self?.snoozeSOS(minutes: 5) }
         overlay.onDismiss = { [weak self] in
             guard let self else { return }
-            if self.manualTestActive {
-                self.manualTestActive = false
-                self.overlay.hide()
-                return
-            }
-
-            self.dismissedUntilRecover = true
+            self.batteryAlert.dismiss()
             self.overlay.hide()
         }
 
+        currentMode = themePreferences.selectedMode(hasProAccess: monetization.hasProAccess)
         setupStatusMenu()
         if !canUseMode(currentMode) {
             currentMode = .defaultWarning
@@ -2791,7 +2549,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func startManualTest() {
-        manualTestActive = true
+        batteryAlert.startPreview()
         evaluateBatteryState()
     }
 
@@ -2878,6 +2636,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             if success, let serverNormalizedKey {
                 self.monetization.storeActivatedLicense(serverNormalizedKey)
+                self.applyMode(self.themePreferences.selectedMode(hasProAccess: true))
                 let successAlert = NSAlert()
                 successAlert.messageText = "Battery SOS Pro Activated"
                 successAlert.informativeText = "All modes are now unlocked on this Mac."
@@ -2908,25 +2667,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let payload = ["machineName": (Host.current().localizedName ?? ProcessInfo.processInfo.hostName)]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+        request.timeoutInterval = 15
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            let result = BillingClientResponse.checkout(data: data, statusCode: (response as? HTTPURLResponse)?.statusCode, error: error)
             DispatchQueue.main.async {
                 guard let self else { return }
-                if let error {
-                    self.showCheckoutError("Could not start checkout: \(error.localizedDescription)")
-                    return
+                switch result {
+                case .success(let url): NSWorkspace.shared.open(url)
+                case .failure(let failure): self.showCheckoutError(failure.message)
                 }
-
-                guard
-                    let data,
-                    let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                    let checkoutURLString = object["url"] as? String,
-                    let checkoutURL = URL(string: checkoutURLString)
-                else {
-                    self.showCheckoutError("Checkout URL response was invalid.")
-                    return
-                }
-
-                NSWorkspace.shared.open(checkoutURL)
             }
         }.resume()
     }
@@ -2946,25 +2695,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        request.timeoutInterval = 15
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            let result = BillingClientResponse.activation(data: data, statusCode: (response as? HTTPURLResponse)?.statusCode, error: error)
             DispatchQueue.main.async {
-                if let error {
-                    completion(false, "Unable to contact billing server: \(error.localizedDescription)", nil)
-                    return
-                }
-
-                guard
-                    let data,
-                    let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                else {
-                    completion(false, "License verification response was invalid.", nil)
-                    return
-                }
-
-                let valid = object["valid"] as? Bool ?? false
-                let message = object["message"] as? String
-                let normalizedKey = object["normalizedKey"] as? String
-                completion(valid, message, normalizedKey)
+                completion(result.valid, result.message, result.normalizedKey)
             }
         }.resume()
     }
@@ -2973,7 +2708,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Checkout Unavailable"
-        alert.informativeText = message + "\n\nSet BATTERY_SOS_BILLING_URL to your deployed billing server URL."
+        alert.informativeText = message
         alert.runModal()
     }
 
@@ -3046,6 +2781,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkUpdatesItem.target = updaterController
         menu.addItem(checkUpdatesItem)
         checkForUpdatesItem = checkUpdatesItem
+
+        let toolsItem = NSMenuItem(title: "Battery Tools · Pro", action: nil, keyEquivalent: "")
+        let toolsMenu = NSMenu(title: "Battery Tools · Pro")
+        menu.addItem(toolsItem)
+        menu.setSubmenu(toolsMenu, for: toolsItem)
+        proMenu = toolsMenu
+        rebuildProMenu()
 
         let modeMenuItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
         let modeMenu = NSMenu(title: "Mode")
@@ -3165,11 +2907,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func handleSystemWillSleep() {
-        manualTestActive = false
+        batteryAlert.prepareForSleep()
         overlay.hide()
     }
 
     private func handleSystemDidWake() {
+        batteryAlert.wake()
         evaluateBatteryState()
     }
 
@@ -3187,16 +2930,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func loadThresholdPreference() {
         let stored = UserDefaults.standard.integer(forKey: thresholdDefaultsKey)
         if (1...10).contains(stored) {
-            thresholdPercent = stored
+            batteryAlert.setThreshold(stored)
         }
     }
 
     private func setWarningThreshold(_ value: Int) {
         guard (1...10).contains(value) else { return }
-        thresholdPercent = value
+        batteryAlert.setThreshold(value)
         UserDefaults.standard.set(value, forKey: thresholdDefaultsKey)
         updateThresholdMenuState()
-        dismissedUntilRecover = false
         evaluateBatteryState()
     }
 
@@ -3213,7 +2955,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setSoundEffectsMuted(_ muted: Bool) {
         soundEffectsMuted = muted
         UserDefaults.standard.set(muted, forKey: soundMutedDefaultsKey)
-        overlay.setSoundMuted(muted)
+        overlay.setSoundMuted(muted || (monetization.hasProAccess && proPreferences.settings.quiet(at: Date())))
         updateSoundMenuState()
     }
 
@@ -3246,29 +2988,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func isPremiumMode(_ mode: OverlayMode) -> Bool {
-        switch mode {
-        case .defaultWarning:
-            return false
-        case .vitalsMonitor, .selfDestruct, .reactorMeltdown, .starshipLifeSupport, .matrixBinary:
-            return true
-        }
-    }
-
     private func canUseMode(_ mode: OverlayMode) -> Bool {
-        !isPremiumMode(mode) || monetization.hasProAccess
+        !mode.isPremium || monetization.hasProAccess
     }
 
     private func menuTitle(for mode: OverlayMode) -> String {
-        guard isPremiumMode(mode), !monetization.hasProAccess else {
-            return mode.rawValue
-        }
-        return "\(mode.rawValue) (Pro)"
+        mode.menuTitle(hasProAccess: monetization.hasProAccess)
     }
 
     private func updateModeMenuTitles() {
-        defaultWarningModeItem?.title = OverlayMode.defaultWarning.rawValue
-        vitalsModeItem?.title = OverlayMode.vitalsMonitor.rawValue
+        defaultWarningModeItem?.title = menuTitle(for: .defaultWarning)
+        vitalsModeItem?.title = menuTitle(for: .vitalsMonitor)
         selfDestructModeItem?.title = menuTitle(for: .selfDestruct)
         reactorMeltdownModeItem?.title = menuTitle(for: .reactorMeltdown)
         starshipLifeSupportModeItem?.title = menuTitle(for: .starshipLifeSupport)
@@ -3280,6 +3010,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             presentProRequiredAlert(for: mode)
             return
         }
+        _ = themePreferences.select(mode, hasProAccess: monetization.hasProAccess)
         applyMode(mode)
     }
 
@@ -3303,51 +3034,167 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func requirePro() -> Bool {
+        guard monetization.hasProAccess else {
+            let alert = NSAlert()
+            alert.messageText = "Battery Tools require Pro"
+            alert.informativeText = "Unlock Pro in Settings to use the battery dashboard, early warnings, snooze, charge reminders and quiet hours."
+            alert.runModal()
+            return false
+        }
+        return true
+    }
+
+    private func rebuildProMenu() {
+        guard let menu = proMenu else { return }
+        let snapshot = "\(proPreferences.settings)|\(proSession.snoozeUntil?.timeIntervalSince1970 ?? 0)|\(monetization.hasProAccess)"
+        guard snapshot != proMenuSnapshot else { return }
+        proMenuSnapshot = snapshot
+        menu.removeAllItems()
+        func add(_ title: String, _ action: Selector, _ tag: Int = 0, selected: Bool = false, to targetMenu: NSMenu? = nil) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self; item.tag = tag; item.state = selected ? .on : .off
+            (targetMenu ?? menu).addItem(item)
+        }
+        let settings = proPreferences.settings
+        add("Battery Dashboard…", #selector(showBatteryDashboard))
+        let earlyItem = NSMenuItem(title: "Early Heads-Up", action: nil, keyEquivalent: "")
+        let early = NSMenu(title: "Early Heads-Up")
+        menu.addItem(earlyItem); menu.setSubmenu(early, for: earlyItem)
+        for value in [0, 15, 20, 30, 40] {
+            add(value == 0 ? "Off" : "At \(value)%", #selector(setHeadsUp(_:)), value, selected: settings.headsUpPercent == value, to: early)
+        }
+        let chargeItem = NSMenuItem(title: "Charge Target Reminder", action: nil, keyEquivalent: "")
+        let charge = NSMenu(title: "Charge Target Reminder")
+        menu.addItem(chargeItem); menu.setSubmenu(charge, for: chargeItem)
+        for value in [0, 80, 90, 100] {
+            add(value == 0 ? "Off" : "At \(value)%", #selector(setChargeTarget(_:)), value, selected: settings.chargeTargetPercent == value, to: charge)
+        }
+        menu.addItem(.separator())
+        for minutes in [5, 10, 15] { add("Snooze SOS for \(minutes) minutes", #selector(selectSnooze(_:)), minutes) }
+        if let until = proSession.snoozeUntil {
+            let info = NSMenuItem(title: "Snoozed until \(DateFormatter.localizedString(from: until, dateStyle: .none, timeStyle: .short)) · 1% overrides", action: nil, keyEquivalent: "")
+            info.isEnabled = false; menu.addItem(info)
+            add("Resume SOS Now", #selector(resumeSOS))
+        }
+        menu.addItem(.separator())
+        add("Quiet Hours · Sound Only", #selector(toggleQuietHours), selected: settings.quietHoursEnabled)
+        for (title, action, selectedHour) in [("Quiet Start", #selector(setQuietStart(_:)), settings.quietStartHour), ("Quiet End", #selector(setQuietEnd(_:)), settings.quietEndHour)] {
+            let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            let hours = NSMenu(title: title)
+            menu.addItem(parent); menu.setSubmenu(hours, for: parent)
+            for hour in 0...23 { add(String(format: "%02d:00", hour), action, hour, selected: selectedHour == hour, to: hours) }
+        }
+    }
+
+    @objc private func setHeadsUp(_ sender: NSMenuItem) {
+        guard requirePro() else { return }
+        var settings = proPreferences.settings; settings.headsUpPercent = sender.tag
+        proPreferences.settings = settings; evaluateBatteryState()
+    }
+    @objc private func setChargeTarget(_ sender: NSMenuItem) {
+        guard requirePro() else { return }
+        var settings = proPreferences.settings; settings.chargeTargetPercent = sender.tag
+        proPreferences.settings = settings; evaluateBatteryState()
+    }
+    @objc private func toggleQuietHours() {
+        guard requirePro() else { return }
+        var settings = proPreferences.settings; settings.quietHoursEnabled.toggle()
+        proPreferences.settings = settings; evaluateBatteryState()
+    }
+    @objc private func setQuietStart(_ sender: NSMenuItem) {
+        guard requirePro() else { return }
+        var settings = proPreferences.settings; settings.quietStartHour = sender.tag
+        proPreferences.settings = settings; evaluateBatteryState()
+    }
+    @objc private func setQuietEnd(_ sender: NSMenuItem) {
+        guard requirePro() else { return }
+        var settings = proPreferences.settings; settings.quietEndHour = sender.tag
+        proPreferences.settings = settings; evaluateBatteryState()
+    }
+    @objc private func selectSnooze(_ sender: NSMenuItem) { snoozeSOS(minutes: sender.tag) }
+    private func snoozeSOS(minutes: Int) {
+        guard requirePro() else { return }
+        let state = readBatteryState()
+        if batteryAlert.manualTestActive {
+            batteryAlert.dismiss(); overlay.hide()
+            showPanel(title: "Preview ended", text: "Snooze applies to live battery warnings. This preview has been stopped.", dashboard: false)
+            return
+        }
+        guard let state, !state.isCharging, state.percent > 1 else {
+            showPanel(title: "Snooze unavailable", text: "Snooze is available while running on battery above 1%. At 1%, connect power or dismiss SOS.", dashboard: false)
+            return
+        }
+        batteryAlert.resumeWarnings()
+        proSession.snooze(minutes: minutes, now: Date()); evaluateBatteryState()
+    }
+    @objc private func resumeSOS() { proSession.resume(); evaluateBatteryState() }
+
+    private func dashboardText(state: BatteryState?) -> String {
+        let seconds = IOPSGetTimeRemainingEstimate()
+        let minutes = seconds.isFinite && seconds > 0 ? Int(min(seconds / 60, 100_000)) : nil
+        let dashboard = BatteryDashboard(state: state, estimatedMinutes: state?.isCharging == false ? minutes : nil)
+        let settings = proPreferences.settings
+        return dashboard.summary + "\n\nFull-screen SOS: \(thresholdPercent)%\nEarly heads-up: \(settings.headsUpPercent == 0 ? "Off" : "\(settings.headsUpPercent)%")\nCharge reminder: \(settings.chargeTargetPercent == 0 ? "Off" : "\(settings.chargeTargetPercent)%")\nSound: \(soundEffectsMuted ? "Muted" : settings.quiet(at: Date()) ? "Quiet hours" : "On")\n\nCharge reminders do not control charging. Estimates come from macOS and may change."
+    }
+    @objc private func showBatteryDashboard() {
+        guard requirePro() else { return }
+        showPanel(title: "Battery SOS · Dashboard", text: dashboardText(state: readBatteryState()), dashboard: true)
+    }
+    private func showProNotice(_ notice: ProBatteryNotice) {
+        switch notice {
+        case .headsUp(let percent): showPanel(title: "Battery heads-up · \(percent)%", text: "Find power soon. Full-screen SOS remains set to \(thresholdPercent)%.", dashboard: false)
+        case .chargeTarget(let percent): showPanel(title: "Charge target reached · \(percent)%", text: "Your chosen charge target has been reached. You can unplug when convenient. Battery SOS does not control charging.", dashboard: false)
+        }
+    }
+    private func showPanel(title: String, text: String, dashboard: Bool) {
+        let existing = dashboard ? dashboardPanel : noticePanel
+        let panel = existing ?? NSPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: dashboard ? 260 : 125), styleMask: [.titled, .closable, .utilityWindow], backing: .buffered, defer: false)
+        panel.title = title; panel.isReleasedWhenClosed = false
+        panel.level = .floating
+        let label = NSTextField(wrappingLabelWithString: text)
+        label.font = .systemFont(ofSize: 14)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        let view = NSView(); view.addSubview(label); panel.contentView = view
+        NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22), label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22), label.topAnchor.constraint(equalTo: view.topAnchor, constant: 20)])
+        if existing == nil { panel.center() }
+        if dashboard { dashboardPanel = panel; dashboardLabel = label }
+        else { noticePanel = panel; noticeExpires = Date().addingTimeInterval(30) }
+        panel.orderFrontRegardless()
+    }
+
     private func evaluateBatteryState() {
         updateMonetizationUI()
-        guard let state = readBatteryState() else {
-            lastKnownChargingState = nil
-            overlay.setBatteryPercent(nil)
-            overlay.hide()
-            return
-        }
-
-        let didJustPlugIn = (lastKnownChargingState == false && state.isCharging)
-        lastKnownChargingState = state.isCharging
-
-        overlay.setBatteryPercent(state.percent)
-
-        if manualTestActive {
-            if didJustPlugIn {
-                manualTestActive = false
-                overlay.hide()
-            } else {
-                overlay.show()
-            }
-            return
-        }
-
-        if state.isCharging {
-            dismissedUntilRecover = false
-            overlay.hide()
-            return
-        }
-
-        let isCritical = state.percent <= thresholdPercent
-
-        if state.percent > thresholdPercent {
-            dismissedUntilRecover = false
-            overlay.hide()
-            return
-        }
-
-        if isCritical && !dismissedUntilRecover {
-            overlay.show()
+        let state = readBatteryState()
+        let now = Date()
+        let pro = monetization.hasProAccess
+        let settings = proPreferences.settings
+        overlay.setSnoozeAvailable(pro && (batteryAlert.manualTestActive || (state != nil && state!.percent > 1 && !state!.isCharging)))
+        overlay.setSoundMuted(soundEffectsMuted || (pro && settings.quiet(at: now)))
+        dashboardLabel?.stringValue = dashboardText(state: state)
+        if !pro { dashboardPanel?.orderOut(nil); noticePanel?.orderOut(nil) }
+        if let expiry = noticeExpires, expiry <= now { noticePanel?.orderOut(nil); noticeExpires = nil }
+        let notice = proSession.evaluate(state, settings: settings, hasPro: pro, criticalPercent: thresholdPercent)
+        let snoozed = proSession.isSnoozed(state: state, now: now, hasPro: pro)
+        rebuildProMenu()
+        overlay.setBatteryPercent(state?.percent)
+        let action = batteryAlert.evaluate(state)
+        if snoozed && !batteryAlert.manualTestActive { overlay.hide(); return }
+        if action == .show { noticePanel?.orderOut(nil) }
+        else if let notice { showProNotice(notice) }
+        switch action {
+        case .show: overlay.show()
+        case .hide: overlay.hide()
         }
     }
 }
 
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
+@main
+private enum BatterySOSApplication {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}

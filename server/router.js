@@ -127,6 +127,11 @@ async function handleApi(req, res, pathname) {
   }
 
   if (req.method === 'POST' && pathname === '/api/billing/recover') {
+    const auth = String(req.headers.authorization || '');
+    if (!auth.startsWith('Bearer ') || !isValidAdminToken(auth.slice(7).trim())) {
+      sendError(res, 401, 'Unauthorized');
+      return;
+    }
     const payload = await parseBody(req);
     sendJson(res, 200, recoverLicenseByEmail(payload.email));
     return;

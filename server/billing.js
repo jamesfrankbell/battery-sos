@@ -37,35 +37,56 @@ function normalizeKey(value) {
   return normalizeText(value).toUpperCase().replace(/\s+/g, '');
 }
 
+// Single-process store: publish a new in-memory state only after durable replacement.
+function writeStore(next) {
+  const temporary = `${BILLING_FILE}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  let descriptor;
+  try {
+    descriptor = fs.openSync(temporary, 'wx', 0o600);
+    fs.writeFileSync(descriptor, JSON.stringify(next, null, 2), 'utf8');
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    fs.renameSync(temporary, BILLING_FILE);
+  } catch {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+    try { fs.unlinkSync(temporary); } catch {}
+    const error = new Error('License storage could not be saved. Please retry later.');
+    error.statusCode = 503;
+    throw error;
+  }
+}
+
 function ensureBillingFile() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(BILLING_FILE)) {
-    fs.writeFileSync(BILLING_FILE, JSON.stringify(EMPTY_STATE, null, 2), 'utf8');
-    return clone(EMPTY_STATE);
+    const initial = clone(EMPTY_STATE);
+    writeStore(initial);
+    return initial;
   }
-
+  // Never reset customer licenses after corruption or a partial/malformed record.
   const raw = fs.readFileSync(BILLING_FILE, 'utf8');
-  if (!raw.trim()) {
-    fs.writeFileSync(BILLING_FILE, JSON.stringify(EMPTY_STATE, null, 2), 'utf8');
-    return clone(EMPTY_STATE);
-  }
-
   try {
     const parsed = JSON.parse(raw);
-    return {
-      licenses: parsed.licenses && typeof parsed.licenses === 'object' ? parsed.licenses : {},
-      sessions: parsed.sessions && typeof parsed.sessions === 'object' ? parsed.sessions : {},
-    };
+    const dictionary = value => value && typeof value === 'object' && !Array.isArray(value);
+    if (!dictionary(parsed) || !dictionary(parsed.licenses) || !dictionary(parsed.sessions)) throw new Error();
+    for (const [key, record] of Object.entries(parsed.licenses)) {
+      if (!dictionary(record) || record.key !== key || typeof record.sessionId !== 'string' ||
+          typeof record.boundMachineName !== 'string' || parsed.sessions[record.sessionId] !== key) throw new Error();
+    }
+    for (const [session, key] of Object.entries(parsed.sessions)) {
+      if (typeof key !== 'string' || !Object.hasOwn(parsed.licenses, key) || parsed.licenses[key].sessionId !== session) throw new Error();
+    }
+    return parsed;
   } catch {
-    fs.writeFileSync(BILLING_FILE, JSON.stringify(EMPTY_STATE, null, 2), 'utf8');
-    return clone(EMPTY_STATE);
+    throw new Error('License storage is invalid; the original file has been preserved. Restore a verified backup before restarting.');
   }
 }
 
 let store = ensureBillingFile();
-
-function persist() {
-  fs.writeFileSync(BILLING_FILE, JSON.stringify(store, null, 2), 'utf8');
+function persist(next) {
+  writeStore(next);
+  store = next;
 }
 
 function requireStripeConfig() {
@@ -161,8 +182,9 @@ function issueLicenseForSession(session) {
   const email = normalizeText(session.customer_details?.email || '');
   const key = generateLicenseKey(session.id, machineName, email);
 
-  store.sessions[session.id] = key;
-  store.licenses[key] = {
+  const next = clone(store);
+  next.sessions[session.id] = key;
+  next.licenses[key] = {
     key,
     sessionId: session.id,
     createdAt: nowIso(),
@@ -170,7 +192,7 @@ function issueLicenseForSession(session) {
     originalMachineName: machineName,
     boundMachineName: '',
   };
-  persist();
+  persist(next);
   return key;
 }
 
@@ -212,19 +234,21 @@ function verifyLicenseKey(licenseKey, machineName) {
     return { valid: false, message: 'License key is required.' };
   }
 
-  const license = store.licenses[normalized];
+  const license = Object.hasOwn(store.licenses, normalized) ? store.licenses[normalized] : null;
   if (!license) {
     return { valid: false, message: 'License key not found.' };
   }
 
   const normalizedMachine = normalizeText(machineName);
+  if (!normalizedMachine) return { valid: false, message: 'Machine name is required for activation.' };
   if (license.boundMachineName && normalizedMachine && license.boundMachineName !== normalizedMachine) {
     return { valid: false, message: 'This key is already activated on another machine.' };
   }
 
   if (!license.boundMachineName && normalizedMachine) {
-    license.boundMachineName = normalizedMachine;
-    persist();
+    const next = clone(store);
+    next.licenses[normalized].boundMachineName = normalizedMachine;
+    persist(next);
   }
 
   return {
@@ -235,6 +259,7 @@ function verifyLicenseKey(licenseKey, machineName) {
 }
 
 function safeEqualHex(a, b) {
+  if (!/^[a-fA-F0-9]{64}$/.test(a) || !/^[a-fA-F0-9]{64}$/.test(b)) return false;
   const aBuffer = Buffer.from(a, 'hex');
   const bBuffer = Buffer.from(b, 'hex');
   if (aBuffer.length !== bBuffer.length) return false;
@@ -260,6 +285,12 @@ function verifyStripeWebhookSignature(rawBody, signatureHeader) {
   }
 
   const timestamp = timestampPart.slice(2);
+  if (!/^\d+$/.test(timestamp) || !Number.isSafeInteger(Number(timestamp)) ||
+      Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp)) > 300) {
+    const error = new Error('Stripe webhook timestamp is invalid or outside the five-minute tolerance.');
+    error.statusCode = 400;
+    throw error;
+  }
   const payload = `${timestamp}.${rawBody}`;
   const expected = crypto.createHmac('sha256', STRIPE_WEBHOOK_SECRET).update(payload).digest('hex');
   const matched = signatureParts.some((candidate) => safeEqualHex(candidate, expected));
@@ -275,7 +306,7 @@ function handleStripeWebhook(rawBody, signatureHeader) {
   verifyStripeWebhookSignature(rawBody, signatureHeader);
   const event = JSON.parse(rawBody);
 
-  if (event.type === 'checkout.session.completed') {
+  if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
     const session = event.data?.object;
     if (session?.payment_status === 'paid') {
       issueLicenseForSession(session);
@@ -287,6 +318,7 @@ function handleStripeWebhook(rawBody, signatureHeader) {
 
 function renderSuccessPage(sessionId) {
   const cleanSessionId = normalizeText(sessionId);
+  const safeSessionId = cleanSessionId.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const record = cleanSessionId ? getLicenseBySessionId(cleanSessionId) : null;
 
   const title = 'Battery SOS Purchase Complete';
@@ -311,7 +343,7 @@ function renderSuccessPage(sessionId) {
   </style>
 </head>
 <body>
-  <div class="card" id="card" data-session-id="${cleanSessionId}">
+  <div class="card" id="card" data-session-id="${safeSessionId}">
     ${header}
     ${instruction}
     <div id="key-slot">${keyMarkup}</div>
@@ -331,7 +363,9 @@ function renderSuccessPage(sessionId) {
       });
     }
 
+    let attempts = 0;
     async function finalizeSession() {
+      attempts += 1;
       const card = document.getElementById('card');
       const slot = document.getElementById('key-slot');
       const sessionId = card?.dataset?.sessionId || '';
@@ -348,15 +382,17 @@ function renderSuccessPage(sessionId) {
       } else {
         const status = payload.message || 'Your payment is still processing. Refresh in a moment.';
         const statusEl = document.getElementById('status-message');
-        if (statusEl) statusEl.textContent = status;
+        if (statusEl) statusEl.textContent = status + (attempts >= 30 ? ' Refresh this page to check again.' : '');
+        if (attempts < 30) setTimeout(() => finalizeSession().catch(showFinalizeError), 2000);
       }
     }
 
     wireCopy();
-    finalizeSession().catch(() => {
+    function showFinalizeError() {
       const statusEl = document.getElementById('status-message');
       if (statusEl) statusEl.textContent = 'Unable to finalize automatically. Refresh this page in a few seconds.';
-    });
+    }
+    finalizeSession().catch(showFinalizeError);
   </script>
 </body>
 </html>`;
@@ -421,6 +457,7 @@ function getEnvDiagnostics() {
   };
 }
 
+// Support-only lookup; the HTTP route requires the existing admin bearer token.
 function recoverLicenseByEmail(email) {
   const target = normalizeText(email).toLowerCase();
   if (!target) {
@@ -471,7 +508,9 @@ function getBillingAdminSummary() {
 }
 
 function isValidAdminToken(token) {
-  return Boolean(BILLING_ADMIN_TOKEN) && normalizeText(token) === BILLING_ADMIN_TOKEN;
+  const supplied = Buffer.from(normalizeText(token));
+  const expected = Buffer.from(BILLING_ADMIN_TOKEN);
+  return expected.length > 0 && supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
 }
 
 function getBillingConfig() {
