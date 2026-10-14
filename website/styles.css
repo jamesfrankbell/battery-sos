@@ -347,6 +347,24 @@ button.button:disabled {
   gap: 16px;
 }
 
+.faq-answers {
+  display: grid;
+  gap: 14px;
+}
+
+.faq-answers article {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  padding: 18px 20px;
+}
+
+.faq-answers p {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .three-up article,
 .faq-grid article,
 .mini-list {

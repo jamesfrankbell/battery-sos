@@ -245,6 +245,88 @@ test('public site can preflight checkout without exposing other origins', async 
   assert.equal(denied.headers['access-control-allow-origin'], undefined);
 });
 
+test('discoverability files and landing pages are served with the right content types', async () => {
+  load('seo-static');
+  delete require.cache[require.resolve('./router')];
+  const handler = require('./router').createRequestHandler();
+  async function get(url) {
+    const req = new PassThrough();
+    Object.assign(req, { method: 'GET', url, headers: {} });
+    const res = new PassThrough();
+    let code;
+    let headers = {};
+    res.writeHead = (status, nextHeaders) => { code = status; headers = nextHeaders || {}; return res; };
+    const chunks = [];
+    res.on('data', (chunk) => chunks.push(chunk));
+    const done = new Promise((resolve) => res.on('end', resolve));
+    const pending = handler(req, res);
+    req.end();
+    await pending;
+    await done;
+    return { code, headers, body: Buffer.concat(chunks) };
+  }
+
+  const sitemap = await get('/sitemap.xml');
+  assert.equal(sitemap.code, 200);
+  assert.match(sitemap.headers['content-type'], /^application\/xml/);
+  const xml = sitemap.body.toString('utf8');
+  for (const loc of ['https://batterysos.app/', 'https://batterysos.app/mac-low-battery-alert', 'https://batterysos.app/macbook-battery-warning-app', 'https://batterysos.app/louder-mac-battery-warning']) {
+    assert.match(xml, new RegExp(loc.replace(/[/.]/g, '\\$&')));
+  }
+
+  const robots = await get('/robots.txt');
+  assert.equal(robots.code, 200);
+  assert.match(robots.headers['content-type'], /^text\/plain/);
+  assert.match(robots.body.toString('utf8'), /Sitemap: https:\/\/batterysos\.app\/sitemap\.xml/);
+
+  const llms = await get('/llms.txt');
+  assert.equal(llms.code, 200);
+  assert.match(llms.headers['content-type'], /^text\/plain/);
+  assert.match(llms.body.toString('utf8'), /Apple silicon/);
+  assert.match(llms.body.toString('utf8'), /Intel Macs are not supported/);
+  assert.match(llms.body.toString('utf8'), /1\.00 USD/);
+
+  const image = await get('/og.jpg');
+  assert.equal(image.code, 200);
+  assert.equal(image.headers['content-type'], 'image/jpeg');
+  assert.equal(image.body[0], 0xff);
+  assert.equal(image.body[1], 0xd8);
+
+  const home = await get('/');
+  assert.match(home.headers['content-type'], /^text\/html/);
+  const homeHtml = home.body.toString('utf8');
+  assert.match(homeHtml, /rel="canonical" href="https:\/\/batterysos\.app\/"/);
+  assert.match(homeHtml, /property="og:image" content="https:\/\/batterysos\.app\/og\.jpg"/);
+  assert.match(homeHtml, /name="twitter:card" content="summary_large_image"/);
+  const blocks = [...homeHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((match) => JSON.parse(match[1]));
+  const app = blocks.find((block) => block['@type'] === 'SoftwareApplication');
+  const faq = blocks.find((block) => block['@type'] === 'FAQPage');
+  assert.equal(app.operatingSystem, 'macOS');
+  assert.equal(app.offers['@type'], 'Offer');
+  assert.equal(app.offers.price, '1.00');
+  assert.equal(app.offers.priceCurrency, 'USD');
+  assert.deepEqual(faq.mainEntity.map((item) => item.name), [
+    'Why is my Mac low battery warning not showing?',
+    'How do I get a louder battery alert on a MacBook?',
+    'Does Battery SOS work on Intel Macs?',
+    'How much does Battery SOS cost?',
+  ]);
+  assert.match(faq.mainEntity[2].acceptedAnswer.text, /^No\. This build is Apple silicon only/);
+  for (const item of faq.mainEntity) assert.match(homeHtml, new RegExp(item.name.replace(/[?]/g, '\\?')));
+
+  const landing = await get('/mac-low-battery-alert');
+  assert.equal(landing.code, 200);
+  assert.match(landing.headers['content-type'], /^text\/html/);
+  const landingHtml = landing.body.toString('utf8');
+  assert.match(landingHtml, /<h1>Mac low battery alert<\/h1>/);
+  assert.match(landingHtml, /does not control the macOS low-battery notification/);
+  assert.doesNotMatch(landingHtml, /Your Mac whispers/);
+  const other = await get('/macbook-battery-warning-app');
+  assert.match(other.body.toString('utf8'), /<h1>MacBook battery warning app<\/h1>/);
+  const louder = await get('/louder-mac-battery-warning');
+  assert.match(louder.body.toString('utf8'), /does not turn up the macOS alert volume/);
+});
+
 test('activation persists across an actual fresh Node process', () => {
   const {spawnSync}=require('node:child_process');
   const script="const b=require(process.argv[1]);const l=b.getLicenseBySessionId('cs_test_fixture');process.stdout.write(JSON.stringify({valid:b.verifyLicenseKey(l.key,'Fixture Mac').valid,other:b.verifyLicenseKey(l.key,'Different Mac').valid}));";

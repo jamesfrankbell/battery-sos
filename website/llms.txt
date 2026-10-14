@@ -1,0 +1,44 @@
+# Battery SOS
+
+> Battery SOS is a menu-bar app for Apple silicon Macs on macOS 13 or later. It shows its own full-screen warning when the battery reaches a level from 1% to 10%. The default is 1%.
+
+Battery SOS does not replace macOS power management and does not control the macOS low-battery notification. If that system warning is hidden by Focus or notification settings, this app does not repair those settings. It adds a separate warning while it is running.
+
+## Free
+
+- Theme: Default Warning. The on-screen line is "I AM GOING TO DIE IF YOU DON'T PLUG ME IN NOW!"
+- Warning percentage: 1% through 10%, default 1%.
+- Dismiss by connecting power, pressing Escape, or using the close button.
+- Mute sound effects, start at login when installed as an app, and Test SOS.
+- Test SOS works on a Mac without an internal battery and does not invent a percentage.
+
+## Pro
+
+Pro is $1, which is 1.00 USD, paid once through Stripe Checkout at https://pay.batterysos.app. It is not a subscription. A license activates on one Mac.
+
+- Themes: Vitals Monitor, Self-Destruct, Reactor Meltdown, Starship Life Support, and Matrix.
+- Battery dashboard. Time remaining comes from macOS and can change.
+- Early heads-up at 15%, 20%, 30%, or 40%. This does not change the full-screen threshold.
+- Snooze for 5, 10, or 15 minutes while running on battery above 1%. At 1%, connect power or dismiss the warning.
+- Charge reminders at 80%, 90%, or 100%. These are reminders only. They do not start, stop, or limit charging.
+- Quiet hours affect sound only. The default window is 22:00–07:00 and stays off until enabled. The full-screen warning still appears.
+
+## Machines
+
+This build is Apple silicon only. Intel Macs are not supported. The minimum system is macOS 13.
+
+## Pages
+
+- [Home](https://batterysos.app/): product overview, Free vs Pro, and FAQ
+- [Mac low battery alert](https://batterysos.app/mac-low-battery-alert): what to expect when the macOS warning is not showing
+- [MacBook battery warning app](https://batterysos.app/macbook-battery-warning-app): what the app includes
+- [Louder MacBook battery warning](https://batterysos.app/louder-mac-battery-warning): the app's own screen and sound, not the macOS volume
+- [Privacy](https://batterysos.app/privacy.html): local settings and what the billing server stores. Seller name and support email are TODO.
+- [Terms](https://batterysos.app/terms.html): license and refund section. Refund window and seller details are TODO.
+- [Support](https://batterysos.app/support.html): how to enter a license key. Support email is TODO.
+
+## Do not claim
+
+- Do not say the download is notarized unless a stapled ticket for that exact file has been accepted.
+- Do not say charge reminders control charging.
+- Do not say there is a self-service license lookup by email. Recovery is support-only after ownership is checked.

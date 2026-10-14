@@ -3,12 +3,84 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Battery SOS for Mac</title>
+    <title>Battery SOS for Mac — full-screen low-battery warning</title>
     <meta
       name="description"
-      content="Battery SOS is a Mac menu-bar app. The free full-screen warning runs from 1% to 10% and defaults to 1%. Pro is $1, one time."
+      content="Battery SOS is an Apple silicon menu-bar app for macOS 13 or later. The free full-screen warning runs from 1% to 10% and defaults to 1%. Pro is $1, one time."
     />
+    <link rel="canonical" href="https://batterysos.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Battery SOS" />
+    <meta property="og:title" content="Battery SOS for Mac — full-screen low-battery warning" />
+    <meta property="og:description" content="Apple silicon menu-bar app. Free full-screen warning from 1% to 10%, default 1%. Pro is $1, one time." />
+    <meta property="og:url" content="https://batterysos.app/" />
+    <meta property="og:image" content="https://batterysos.app/og.jpg" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Battery SOS for Mac — full-screen low-battery warning" />
+    <meta name="twitter:description" content="Apple silicon menu-bar app. Free full-screen warning from 1% to 10%, default 1%. Pro is $1, one time." />
+    <meta name="twitter:image" content="https://batterysos.app/og.jpg" />
     <link rel="stylesheet" href="./styles.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Battery SOS",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "macOS",
+        "url": "https://batterysos.app/",
+        "image": "https://batterysos.app/og.jpg",
+        "description": "Menu-bar app for Apple silicon Macs on macOS 13 or later. Default Warning is a free full-screen low-battery alert from 1% to 10%, default 1%. Pro is a one-time license.",
+        "offers": {
+          "@type": "Offer",
+          "name": "Battery SOS Pro",
+          "price": "1.00",
+          "priceCurrency": "USD",
+          "description": "One-time Pro license. Default Warning is included with the free download."
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Why is my Mac low battery warning not showing?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Battery SOS does not control the macOS low-battery notification. If that system warning is missing, check Focus, Do Not Disturb, and battery notifications in System Settings. Battery SOS adds its own full-screen warning when the battery reaches the percentage you choose, from 1% to 10%, starting at 1%. It stays up until you connect power, press Escape, or close it. The app has to be running on an Apple silicon Mac with macOS 13 or later."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I get a louder battery alert on a MacBook?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Battery SOS does not turn up the macOS alert volume. Default Warning fills the screen and plays its own sound until you connect power or dismiss it. Mute Sound Effects turns that sound off. Pro quiet hours silence the sound only, and the full-screen warning still appears."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Battery SOS work on Intel Macs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. This build is Apple silicon only and requires macOS 13 or later. Intel Macs are not supported."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How much does Battery SOS cost?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The download includes Default Warning for free. Pro is $1 (1.00 USD), one time. Pro adds Vitals Monitor, Self-Destruct, Reactor Meltdown, Starship Life Support, Matrix, the battery dashboard, early heads-up at 15%, 20%, 30%, or 40%, snooze, charge reminders, and quiet hours. Charge reminders do not control charging."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div class="ambient ambient-1"></div>
@@ -269,7 +341,37 @@
         </div>
       </section>
 
+      <section class="card faq" id="faq">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">FAQ</p>
+            <h2>Questions people ask before they install it.</h2>
+          </div>
+        </div>
+        <div class="faq-answers">
+          <article>
+            <h3>Why is my Mac low battery warning not showing?</h3>
+            <p>Battery SOS does not control the macOS low-battery notification. If that system warning is missing, check Focus, Do Not Disturb, and battery notifications in System Settings. Battery SOS adds its own full-screen warning when the battery reaches the percentage you choose, from 1% to 10%, starting at 1%. It stays up until you connect power, press Escape, or close it. The app has to be running on an Apple silicon Mac with macOS 13 or later.</p>
+          </article>
+          <article>
+            <h3>How do I get a louder battery alert on a MacBook?</h3>
+            <p>Battery SOS does not turn up the macOS alert volume. Default Warning fills the screen and plays its own sound until you connect power or dismiss it. Mute Sound Effects turns that sound off. Pro quiet hours silence the sound only, and the full-screen warning still appears.</p>
+          </article>
+          <article>
+            <h3>Does Battery SOS work on Intel Macs?</h3>
+            <p>No. This build is Apple silicon only and requires macOS 13 or later. Intel Macs are not supported.</p>
+          </article>
+          <article>
+            <h3>How much does Battery SOS cost?</h3>
+            <p>The download includes Default Warning for free. Pro is $1 (1.00 USD), one time. Pro adds Vitals Monitor, Self-Destruct, Reactor Meltdown, Starship Life Support, Matrix, the battery dashboard, early heads-up at 15%, 20%, 30%, or 40%, snooze, charge reminders, and quiet hours. Charge reminders do not control charging.</p>
+          </article>
+        </div>
+      </section>
+
       <footer class="site-footer">
+        <a href="/mac-low-battery-alert">Mac low battery alert</a>
+        <a href="/macbook-battery-warning-app">MacBook battery warning</a>
+        <a href="/louder-mac-battery-warning">Louder warning</a>
         <a href="./privacy.html">Privacy</a>
         <a href="./terms.html">Terms</a>
         <a href="./support.html">Support</a>

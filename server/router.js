@@ -34,10 +34,16 @@ const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.dmg': 'application/x-apple-diskimage',
   '.html': 'text/html; charset=utf-8',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
   '.sha256': 'text/plain; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.webp': 'image/webp',
+  '.xml': 'application/xml; charset=utf-8',
 };
 
 function sendJson(res, statusCode, payload) {
@@ -246,6 +252,14 @@ function resolveStaticFile(pathname) {
 
   if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
     return absolutePath;
+  }
+
+  // /mac-low-battery-alert serves website/mac-low-battery-alert.html.
+  if (!path.extname(absolutePath)) {
+    const htmlPath = `${absolutePath}.html`;
+    if (htmlPath.startsWith(CLIENT_DIR) && fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
+      return htmlPath;
+    }
   }
 
   return null;
