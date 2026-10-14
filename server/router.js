@@ -24,6 +24,10 @@ const {
 } = require('./store');
 
 const CLIENT_DIR = path.resolve(__dirname, '..', 'website');
+const CHECKOUT_SITE_ORIGINS = new Set([
+  'https://batterysos.app',
+  'https://www.batterysos.app',
+]);
 const DOWNLOADS_DIR = path.resolve(__dirname, '..', 'mac', 'dist');
 
 const MIME_TYPES = {
@@ -113,7 +117,19 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
-  if (req.method === 'POST' && pathname === '/api/billing/create-checkout-session') {
+  if ((req.method === 'POST' || req.method === 'OPTIONS') && pathname === '/api/billing/create-checkout-session') {
+    const origin = String(req.headers.origin || '');
+    if (CHECKOUT_SITE_ORIGINS.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     const payload = await parseBody(req);
     const session = await createCheckoutSession(payload.machineName);
     sendJson(res, 200, session);
@@ -163,7 +179,7 @@ async function handleApi(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/billing/webhook') {
     const raw = await parseRawBody(req);
     const signature = req.headers['stripe-signature'] || '';
-    sendJson(res, 200, handleStripeWebhook(raw, signature));
+    sendJson(res, 200, await handleStripeWebhook(raw, signature));
     return;
   }
 

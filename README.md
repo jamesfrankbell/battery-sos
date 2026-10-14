@@ -55,7 +55,8 @@ See [mac build/release instructions](mac/README-battery-overlay.md),
 [billing verification](server/README-billing.md) and the
 [current release acceptance checklist](LAUNCH-READY-CHECKLIST.md).
 
-Public site: https://batterysos.app. Support, Privacy and Terms destinations remain
-unconfirmed; this repository does not invent contact addresses or legal terms.
+Public site: https://batterysos.app. Privacy, Terms, and Support pages live in
+`website/`. The support email, seller legal name, and refund-window details are
+still TODO and must be confirmed before those pages are treated as final.
 Local changes are not deployed, and the public appcast remains unchanged until
 the final artifact, signatures and explicit publication approval are available.

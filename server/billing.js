@@ -133,7 +133,7 @@ async function createCheckoutSession(machineName) {
   };
 }
 
-async function fetchCheckoutSessionById(sessionId) {
+async function fetchCheckoutSessionById(sessionId, stripeVersion) {
   requireStripeConfig();
   const cleanId = normalizeText(sessionId);
   if (!cleanId) {
@@ -142,11 +142,14 @@ async function fetchCheckoutSessionById(sessionId) {
     throw error;
   }
 
+  const headers = {
+    Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+  };
+  if (stripeVersion) headers['Stripe-Version'] = stripeVersion;
+
   const response = await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(cleanId)}`, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-    },
+    headers,
   });
 
   const payload = await response.json();
@@ -179,7 +182,9 @@ function issueLicenseForSession(session) {
   }
 
   const machineName = normalizeText(session.metadata?.machineName || '');
-  const email = normalizeText(session.customer_details?.email || '');
+  // customer_email is only a prefill. The address entered in Checkout is
+  // customer_details.email on API versions that include that hash.
+  const email = normalizeText(session.customer_details?.email || session.customer_email || '');
   const key = generateLicenseKey(session.id, machineName, email);
 
   const next = clone(store);
@@ -302,12 +307,33 @@ function verifyStripeWebhookSignature(rawBody, signatureHeader) {
   }
 }
 
-function handleStripeWebhook(rawBody, signatureHeader) {
+// Webhook endpoints pinned to API version 2019-03-14 render checkout.session.completed
+// without payment_status, customer_details, or metadata. customer_email on that
+// snapshot is the prefill and is null unless it was set at session creation.
+// Retrieve with Stripe-Version 2022-11-15, which includes payment_status and
+// customer_details.email, then still issue a key only when payment_status is paid.
+const CHECKOUT_FULFILLMENT_VERSION = '2022-11-15';
+
+function snapshotOmitsPaymentStatus(session) {
+  return Boolean(session && session.object === 'checkout.session' && !Object.hasOwn(session, 'payment_status'));
+}
+
+async function sessionForFulfillment(snapshot) {
+  if (!snapshotOmitsPaymentStatus(snapshot)) return snapshot;
+  const sessionId = normalizeText(snapshot.id);
+  if (!sessionId) return null;
+  return fetchCheckoutSessionById(sessionId, CHECKOUT_FULFILLMENT_VERSION);
+}
+
+async function handleStripeWebhook(rawBody, signatureHeader) {
   verifyStripeWebhookSignature(rawBody, signatureHeader);
   const event = JSON.parse(rawBody);
 
   if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
-    const session = event.data?.object;
+    const snapshot = event.data?.object;
+    const existingId = normalizeText(snapshot?.id);
+    if (existingId && getLicenseBySessionId(existingId)) return { received: true };
+    const session = await sessionForFulfillment(snapshot);
     if (session?.payment_status === 'paid') {
       issueLicenseForSession(session);
     }

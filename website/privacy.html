@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy — Battery SOS</title>
+    <meta name="description" content="What Battery SOS stores on your Mac and on the billing server." />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <article class="card legal">
+        <p class="eyebrow">Battery SOS</p>
+        <h1>Privacy</h1>
+        <p>This page describes the Battery SOS Mac app and the billing service at pay.batterysos.app. It is not a finished privacy notice.</p>
+
+        <h2>On your Mac</h2>
+        <p>The app reads the internal battery level, charging state, and, for the Pro dashboard, the time-remaining estimate macOS provides. Those readings stay on the Mac except for the Mac name sent during checkout or license activation.</p>
+        <p>Settings saved locally include the warning percentage, theme, mute preference, start-at-login choice, license key, and Pro settings for early heads-up, charge reminder, snooze, and quiet hours.</p>
+
+        <h2>Checkout</h2>
+        <p>Buy Pro opens Stripe Checkout. Card details are entered on Stripe's page. This site and the Mac app do not receive the card number. The billing server creates the Checkout Session and, after Stripe reports a paid session, stores a license record.</p>
+
+        <h2>What the billing server stores</h2>
+        <ul>
+          <li>The license key</li>
+          <li>The Stripe Checkout session id</li>
+          <li>The email on the completed Checkout session, when Stripe provides it</li>
+          <li>The Mac name sent when checkout was created, which is empty for a purchase started on this website</li>
+          <li>The Mac name sent when the key is activated</li>
+        </ul>
+        <p>A license activates on one Mac. There is no Battery SOS account password. The marketing pages do not set their own analytics cookies.</p>
+
+        <h2>Still to confirm</h2>
+        <p class="todo">TODO: seller legal name, support email, how long license records are kept, and any subprocessors besides Stripe and the host that runs pay.batterysos.app.</p>
+      </article>
+      <footer class="site-footer">
+        <a href="./index.html">Battery SOS</a>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./support.html">Support</a>
+      </footer>
+    </main>
+  </body>
+</html>
