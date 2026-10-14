@@ -3,12 +3,84 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Battery SOS for Mac — V2</title>
+    <title>Battery SOS for Mac — full-screen low-battery warning</title>
     <meta
       name="description"
-      content="Battery SOS is the tiny Mac app that warns you before your laptop dies, so your work doesn’t go with it."
+      content="Battery SOS is an Apple silicon menu-bar app for macOS 13 or later. The free full-screen warning runs from 1% to 10% and defaults to 1%. Pro is $1, one time."
     />
+    <link rel="canonical" href="https://batterysos.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Battery SOS" />
+    <meta property="og:title" content="Battery SOS for Mac — full-screen low-battery warning" />
+    <meta property="og:description" content="Apple silicon menu-bar app. Free full-screen warning from 1% to 10%, default 1%. Pro is $1, one time." />
+    <meta property="og:url" content="https://batterysos.app/" />
+    <meta property="og:image" content="https://batterysos.app/og.jpg" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Battery SOS for Mac — full-screen low-battery warning" />
+    <meta name="twitter:description" content="Apple silicon menu-bar app. Free full-screen warning from 1% to 10%, default 1%. Pro is $1, one time." />
+    <meta name="twitter:image" content="https://batterysos.app/og.jpg" />
     <link rel="stylesheet" href="./styles.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Battery SOS",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "macOS",
+        "url": "https://batterysos.app/",
+        "image": "https://batterysos.app/og.jpg",
+        "description": "Menu-bar app for Apple silicon Macs on macOS 13 or later. Default Warning is a free full-screen low-battery alert from 1% to 10%, default 1%. Pro is a one-time license.",
+        "offers": {
+          "@type": "Offer",
+          "name": "Battery SOS Pro",
+          "price": "1.00",
+          "priceCurrency": "USD",
+          "description": "One-time Pro license. Default Warning is included with the free download."
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Why is my Mac low battery warning not showing?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Battery SOS does not control the macOS low-battery notification. If that system warning is missing, check Focus, Do Not Disturb, and battery notifications in System Settings. Battery SOS adds its own full-screen warning when the battery reaches the percentage you choose, from 1% to 10%, starting at 1%. It stays up until you connect power, press Escape, or close it. The app has to be running on an Apple silicon Mac with macOS 13 or later."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I get a louder battery alert on a MacBook?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Battery SOS does not turn up the macOS alert volume. Default Warning fills the screen and plays its own sound until you connect power or dismiss it. Mute Sound Effects turns that sound off. Pro quiet hours silence the sound only, and the full-screen warning still appears."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Battery SOS work on Intel Macs?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. This build is Apple silicon only and requires macOS 13 or later. Intel Macs are not supported."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How much does Battery SOS cost?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The download includes Default Warning for free. Pro is $1 (1.00 USD), one time. Pro adds Vitals Monitor, Self-Destruct, Reactor Meltdown, Starship Life Support, Matrix, the battery dashboard, early heads-up at 15%, 20%, 30%, or 40%, snooze, charge reminders, and quiet hours. Charge reminders do not control charging."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div class="ambient ambient-1"></div>
@@ -16,7 +88,8 @@
 
     <header class="scroll-header" id="scroll-header" aria-hidden="true">
       <div class="scroll-header-inner">
-        <a class="button primary scroll-header-cta" href="/downloads/battery-sos-macos.dmg">Download</a>
+        <button class="button primary scroll-header-cta" type="button" data-buy-pro>Buy Pro</button>
+        <a class="button ghost scroll-header-cta" href="/downloads/battery-sos-macos.dmg">Download</a>
       </div>
     </header>
 
@@ -25,22 +98,24 @@
         <div class="eyebrow">Battery SOS for Mac</div>
         <div class="hero-grid">
           <div class="hero-copy">
-            <h1>Your Mac whispers.<br /><span class="hero-pulse-text">Battery SOS</span> has the decency to yell.</h1>
+            <h1>Your Mac whispers.<br /><span class="hero-pulse-text">Battery SOS</span> fills the screen.</h1>
             <p class="lede">
-              Battery SOS is a tiny Mac app that warns you before your laptop dies,
-              so you can plug in before your screen goes black and your unsaved work
-              ascends into the heavens.
+              Battery SOS is a menu-bar app for Apple silicon Macs on macOS 13 or later.
+              The free full-screen warning can be set from 1% to 10% and starts at 1%.
+              It stays up until you connect power or close it.
             </p>
 
             <div class="cta-row">
               <a class="button primary" href="/downloads/battery-sos-macos.dmg">Download for Mac</a>
-              <a class="button ghost" href="#why">Why this exists</a>
+              <button class="button ghost" type="button" data-buy-pro>Buy Pro</button>
+              <a class="button ghost" href="#compare">Free vs Pro</a>
+              <p class="buy-status" role="status"></p>
             </div>
 
             <ul class="trust-row">
-              <li>Apple signed + notarized</li>
-              <li>Set your own warning level</li>
-              <li>Built for people who like finishing their work</li>
+              <li>Apple silicon, macOS 13 or later</li>
+              <li>Full-screen SOS from 1% to 10%, default 1%</li>
+              <li>Pro is $1, one time</li>
             </ul>
           </div>
 
@@ -49,18 +124,18 @@
               <span></span><span></span><span></span>
             </div>
             <div class="mock-body">
-              <p class="mock-label">BATTERY SOS</p>
-              <h3>Hey genius, you’ve got 9% left.</h3>
+              <p class="mock-label">Default Warning</p>
+              <h3>I AM GOING TO DIE IF YOU DON'T PLUG ME IN NOW!</h3>
               <p>
-                Plug in now, save your tabs, save your dignity, and avoid becoming a
-                cautionary tale.
+                That is the free full-screen message. Close it from the corner, press Escape,
+                or connect power.
               </p>
               <div class="mock-meter">
                 <div class="mock-meter-fill"></div>
               </div>
               <div class="mock-actions">
-                <span>Dismiss</span>
-                <span class="accent">Open Settings</span>
+                <span>Close</span>
+                <span class="accent">1% default</span>
               </div>
             </div>
           </aside>
@@ -69,43 +144,43 @@
 
       <section class="strip">
         <p>
-          For writers, builders, tab hoarders, caffeine-fueled gremlins, and anyone
-          who has ever said, “I’ll plug it in in a second” right before disaster.
+          For the MacBook that is still on battery. The public download is the Mac app.
+          Pro is a separate one-time purchase.
         </p>
       </section>
 
       <section class="card" id="why">
         <div class="section-head">
           <div>
-            <p class="eyebrow">The problem</p>
-            <h2>macOS gives low-battery warnings. They’re just weirdly easy to ignore.</h2>
+            <p class="eyebrow">The warning</p>
+            <h2>The full-screen SOS is 1% to 10%. It defaults to 1%.</h2>
           </div>
           <p class="section-copy">
-            Battery SOS exists for one reason: to make the warning impossible to miss
-            before your computer rage-quits the relationship.
+            Settings, then Warning Percentage, chooses the level. Early heads-up at
+            15%, 20%, 30%, or 40% is a separate Pro notice and does not replace this threshold.
           </p>
         </div>
 
         <div class="three-up">
           <article>
-            <h3>More obvious</h3>
+            <h3>Full-screen</h3>
             <p>
-              A clearer, more intentional warning when your battery drops below the level
-              you choose.
+              Default Warning covers the screen and stays there until power is connected,
+              you press Escape, or you use the close button.
             </p>
           </article>
           <article>
-            <h3>More customizable</h3>
+            <h3>1% through 10%</h3>
             <p>
-              Set the threshold that matches how you work — whether you’re cautious at
-              20% or reckless at 7%.
+              The free threshold starts at 1%. You can move it up to 10%. Those ten choices
+              are the whole free range.
             </p>
           </article>
           <article>
-            <h3>More merciful</h3>
+            <h3>Earlier is Pro</h3>
             <p>
-              Prevent the stupid kind of interruption: lost edits, broken flow, and that
-              tiny funeral in your soul when the screen goes dark.
+              A heads-up at 15%, 20%, 30%, or 40% is Pro. Snooze does not apply at 1%:
+              connect power or dismiss the warning.
             </p>
           </article>
         </div>
@@ -114,49 +189,98 @@
       <section class="card" id="modes">
         <div class="section-head">
           <div>
-            <p class="eyebrow">Alert Modes</p>
-            <h2>Pick your flavor of panic.</h2>
+            <p class="eyebrow">Themes</p>
+            <h2>Six themes. These are the names in the app.</h2>
           </div>
           <p class="section-copy">
-            Hover a mode on the left to preview the kind of alert screen Battery SOS will show.
+            Default Warning is free. Vitals Monitor, Self-Destruct, Reactor Meltdown,
+            Starship Life Support, and Matrix require Pro.
           </p>
         </div>
 
         <div class="modes-showcase" id="modes-showcase">
-          <div class="modes-list" role="listbox" aria-label="Battery SOS modes">
-            <button class="mode-item is-active" data-mode="matrix">
-              <span class="mode-item-name">Matrix</span>
-              <span class="mode-item-sub">Cyber terminal panic</span>
+          <div class="modes-list" role="listbox" aria-label="Battery SOS themes">
+            <button class="mode-item is-active" data-mode="default" type="button">
+              <span class="mode-item-name">Default Warning</span>
+              <span class="mode-item-sub">Free full-screen SOS</span>
             </button>
-            <button class="mode-item" data-mode="vitals">
+            <button class="mode-item" data-mode="vitals" type="button">
               <span class="mode-item-name">Vitals Monitor</span>
-              <span class="mode-item-sub">EKG + flatline pressure</span>
+              <span class="mode-item-sub">Pro</span>
             </button>
-            <button class="mode-item" data-mode="mission">
-              <span class="mode-item-name">Mission Impossible</span>
-              <span class="mode-item-sub">Countdown intensity</span>
+            <button class="mode-item" data-mode="self-destruct" type="button">
+              <span class="mode-item-name">Self-Destruct</span>
+              <span class="mode-item-sub">Pro</span>
             </button>
-            <button class="mode-item" data-mode="starship">
-              <span class="mode-item-name">Starship</span>
-              <span class="mode-item-sub">Life support critical</span>
+            <button class="mode-item" data-mode="starship" type="button">
+              <span class="mode-item-name">Starship Life Support</span>
+              <span class="mode-item-sub">Pro</span>
             </button>
-            <button class="mode-item" data-mode="reactor">
-              <span class="mode-item-name">Nuclear Reactor</span>
-              <span class="mode-item-sub">Meltdown warning mode</span>
+            <button class="mode-item" data-mode="reactor" type="button">
+              <span class="mode-item-name">Reactor Meltdown</span>
+              <span class="mode-item-sub">Pro</span>
+            </button>
+            <button class="mode-item" data-mode="matrix" type="button">
+              <span class="mode-item-name">Matrix</span>
+              <span class="mode-item-sub">Pro</span>
             </button>
           </div>
 
-          <aside class="mode-preview mode-matrix" id="mode-preview" aria-live="polite">
+          <aside class="mode-preview mode-default" id="mode-preview" aria-live="polite">
             <div id="mode-preview-content"></div>
           </aside>
         </div>
+      </section>
+
+      <section class="card" id="compare">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">Free vs Pro</p>
+            <h2>Free warns you. Pro adds the tools around it.</h2>
+          </div>
+          <p class="section-copy">Pro is $1, one time. The charge uses the existing Stripe price. This page does not set the amount.</p>
+        </div>
+
+        <div class="compare">
+          <article>
+            <h3>Free</h3>
+            <ul>
+              <li>Default Warning, the full-screen SOS</li>
+              <li>Warning percentage from 1% to 10%, default 1%</li>
+              <li>Mute sound effects</li>
+              <li>Start at login when the app is installed</li>
+              <li>Test SOS, including on a Mac without a battery</li>
+              <li>Close, Escape, or connect power to end the warning</li>
+            </ul>
+          </article>
+          <article>
+            <h3>Pro · $1 one time</h3>
+            <ul>
+              <li>Themes: Vitals Monitor, Self-Destruct, Reactor Meltdown, Starship Life Support, and Matrix</li>
+              <li>Battery Dashboard, with the macOS time-remaining estimate when it is available</li>
+              <li>Early heads-up at 15%, 20%, 30%, or 40%</li>
+              <li>Snooze for 5, 10, or 15 minutes while on battery above 1%</li>
+              <li>Charge reminders at 80%, 90%, or 100%. Reminders only. They do not start, stop, or limit charging.</li>
+              <li>Quiet hours for sound only. The default window is 22:00–07:00 and stays off until you turn it on.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="cta-row">
+          <button class="button primary" type="button" data-buy-pro>Buy Pro</button>
+          <p class="buy-status" id="buy-pro-status" role="status"></p>
+        </div>
+        <p class="section-copy">
+          Checkout opens on Stripe through pay.batterysos.app. After payment, copy the license key into
+          Battery SOS, then Settings, then Enter License Key. A key activates on one Mac.
+        </p>
       </section>
 
       <section class="card">
         <div class="section-head compact">
           <div>
             <p class="eyebrow">How it works</p>
-            <h2>Simple app. One job. Zero nonsense.</h2>
+            <h2>Install the app. Set the percentage. Unlock Pro only if you want it.</h2>
           </div>
         </div>
 
@@ -165,51 +289,22 @@
             <span class="step-num">1</span>
             <div>
               <h3>Install it</h3>
-              <p>Drag Battery SOS into Applications like the civilized Mac user you pretend to be.</p>
+              <p>Download the disk image and drag Battery SOS into Applications.</p>
             </div>
           </div>
           <div class="step">
             <span class="step-num">2</span>
             <div>
-              <h3>Pick your panic point</h3>
-              <p>Choose the battery percentage where you want the alert to fire.</p>
+              <h3>Leave it at 1%, or choose up to 10%</h3>
+              <p>Settings, then Warning Percentage. The free warning does not offer 15% or higher. That heads-up is Pro.</p>
             </div>
           </div>
           <div class="step">
             <span class="step-num">3</span>
             <div>
-              <h3>Stay ahead of the crash</h3>
-              <p>Get the warning, grab a charger, keep working, and feel smug about your foresight.</p>
+              <h3>Buy Pro when you want the rest</h3>
+              <p>Use Buy Pro here, or Settings, then Unlock Pro ($1)... in the app. Paste the key from the success page.</p>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card emphasis">
-        <div class="section-head compact">
-          <div>
-            <p class="eyebrow">What you’re really buying</p>
-            <h2>Not a battery app. A continuity app.</h2>
-          </div>
-          <p class="section-copy">
-            Battery SOS helps you keep your train of thought, your unsaved work, and your
-            afternoon from getting body-slammed by a preventable shutdown.
-          </p>
-        </div>
-
-        <div class="quote-grid">
-          <blockquote>
-            “This is for the person with 37 tabs open, a half-written email, a doc they forgot to save, and exactly zero interest in learning a lesson the hard way.”
-          </blockquote>
-          <div class="mini-list">
-            <p>Good for:</p>
-            <ul>
-              <li>Writing sessions</li>
-              <li>Client calls</li>
-              <li>Editing marathons</li>
-              <li>Airport work sprints</li>
-              <li>Living on vibes and 11% battery</li>
-            </ul>
           </div>
         </div>
       </section>
@@ -217,23 +312,23 @@
       <section class="card faq">
         <div class="section-head compact">
           <div>
-            <p class="eyebrow">Trust</p>
-            <h2>No mystery meat.</h2>
+            <p class="eyebrow">Before you download</p>
+            <h2>What this build is.</h2>
           </div>
         </div>
 
         <div class="faq-grid">
           <article>
-            <h3>Is it legit?</h3>
-            <p>Yep. Apple Developer ID signed + notarized.</p>
+            <h3>Which Macs?</h3>
+            <p>Apple silicon, macOS 13 or later. Intel Macs are not supported by this build.</p>
           </article>
           <article>
-            <h3>Do I need to think hard?</h3>
-            <p>No. Install it, set the threshold once, and let the app be louder than your denial.</p>
+            <h3>Is the download Pro?</h3>
+            <p>No. The disk image is the app. Pro is a separate $1 one-time license.</p>
           </article>
           <article>
             <h3>Can I verify the file?</h3>
-            <p>Also yes. SHA256 checksum is included for the delightfully paranoid.</p>
+            <p>A SHA256 checksum is published next to the disk image.</p>
           </article>
         </div>
 
@@ -245,16 +340,61 @@
           </div>
         </div>
       </section>
+
+      <section class="card faq" id="faq">
+        <div class="section-head compact">
+          <div>
+            <p class="eyebrow">FAQ</p>
+            <h2>Questions people ask before they install it.</h2>
+          </div>
+        </div>
+        <div class="faq-answers">
+          <article>
+            <h3>Why is my Mac low battery warning not showing?</h3>
+            <p>Battery SOS does not control the macOS low-battery notification. If that system warning is missing, check Focus, Do Not Disturb, and battery notifications in System Settings. Battery SOS adds its own full-screen warning when the battery reaches the percentage you choose, from 1% to 10%, starting at 1%. It stays up until you connect power, press Escape, or close it. The app has to be running on an Apple silicon Mac with macOS 13 or later.</p>
+          </article>
+          <article>
+            <h3>How do I get a louder battery alert on a MacBook?</h3>
+            <p>Battery SOS does not turn up the macOS alert volume. Default Warning fills the screen and plays its own sound until you connect power or dismiss it. Mute Sound Effects turns that sound off. Pro quiet hours silence the sound only, and the full-screen warning still appears.</p>
+          </article>
+          <article>
+            <h3>Does Battery SOS work on Intel Macs?</h3>
+            <p>No. This build is Apple silicon only and requires macOS 13 or later. Intel Macs are not supported.</p>
+          </article>
+          <article>
+            <h3>How much does Battery SOS cost?</h3>
+            <p>The download includes Default Warning for free. Pro is $1 (1.00 USD), one time. Pro adds Vitals Monitor, Self-Destruct, Reactor Meltdown, Starship Life Support, Matrix, the battery dashboard, early heads-up at 15%, 20%, 30%, or 40%, snooze, charge reminders, and quiet hours. Charge reminders do not control charging.</p>
+          </article>
+        </div>
+      </section>
+
+      <footer class="site-footer">
+        <a href="/mac-low-battery-alert">Mac low battery alert</a>
+        <a href="/macbook-battery-warning-app">MacBook battery warning</a>
+        <a href="/louder-mac-battery-warning">Louder warning</a>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./support.html">Support</a>
+      </footer>
     </main>
 
     <script>
+      const CHECKOUT_URL = 'https://pay.batterysos.app/api/billing/create-checkout-session';
       const MODE_CONTENT = {
+        default: {
+          className: 'mode-default',
+          html: `
+            <p class="mode-preview-kicker">Preview — Default Warning</p>
+            <h3>I AM GOING TO DIE IF YOU DON'T PLUG ME IN NOW!</h3>
+            <p class="mode-preview-sub">FREE · FULL-SCREEN SOS · 1% TO 10%</p>
+          `
+        },
         matrix: {
           className: 'mode-matrix',
           html: `
             <p class="mode-preview-kicker">Preview — Matrix</p>
             <h3>MATRIX PROCESS LOOP DETECTED</h3>
-            <p class="mode-preview-sub">POWER SOURCE ANOMALY // CONNECT CHARGER</p>
+            <p class="mode-preview-sub">PRO · POWER SOURCE ANOMALY // CONNECT CHARGER</p>
             <div class="mode-screen-grid matrix-screen">
               <div class="mode-screen-lines">010101001011001010101110<br/>001100101101001110010111<br/>111001001010101001011001</div>
               <div class="mode-screen-counter">009873</div>
@@ -265,8 +405,8 @@
           className: 'mode-vitals',
           html: `
             <p class="mode-preview-kicker">Preview — Vitals Monitor</p>
-            <h3>PATIENT POWER STATUS // CRITICAL</h3>
-            <p class="mode-preview-sub">HEART RATE COLLAPSING // CONNECT CHARGER NOW</p>
+            <h3>VITALS MONITOR</h3>
+            <p class="mode-preview-sub">PRO · THE APP SHOWS THE LIVE BATTERY PERCENT</p>
             <div class="mode-screen-grid vitals-screen">
               <div class="ekg-strip">
                 <svg class="ekg-svg" viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true">
@@ -274,32 +414,29 @@
                 </svg>
               </div>
               <div class="vitals-metrics">
-                <div>HEART RATE <strong>32</strong></div>
-                <div>OXYGEN <strong>84%</strong></div>
-                <div>BATTERY <strong>7%</strong></div>
+                <div>BATTERY <strong>--%</strong></div>
               </div>
             </div>
           `
         },
-        mission: {
+        'self-destruct': {
           className: 'mode-mission',
           html: `
-            <p class="mode-preview-kicker">Preview — Mission Impossible</p>
+            <p class="mode-preview-kicker">Preview — Self-Destruct</p>
             <h3>SELF-DESTRUCT SEQUENCE INITIATED...</h3>
-            <p class="mode-preview-sub">THIS MESSAGE WILL SELF-DESTRUCT IN 4 SECONDS</p>
+            <p class="mode-preview-sub">PRO</p>
             <div class="mode-screen-grid mission-screen">
-              <div class="mode-screen-badge">CLASSIFIED</div>
-              <div class="mode-screen-counter">04</div>
-              <div class="mode-screen-foot">ATTACH DEVICE TO POWER TO ABORT EMERGENCY LOCKDOWN.</div>
+              <div class="mode-screen-counter">05</div>
+              <div class="mode-screen-foot">CONNECT POWER TO END THE WARNING.</div>
             </div>
           `
         },
         starship: {
           className: 'mode-starship',
           html: `
-            <p class="mode-preview-kicker">Preview — Starship</p>
-            <h3>STARSHIP LIFE SUPPORT // LONG-RANGE HUD</h3>
-            <p class="mode-preview-sub">CRITICAL LIFE SUPPORT FAILURE</p>
+            <p class="mode-preview-kicker">Preview — Starship Life Support</p>
+            <h3>STARSHIP LIFE SUPPORT</h3>
+            <p class="mode-preview-sub">PRO · CRITICAL LIFE SUPPORT FAILURE</p>
             <div class="mode-screen-grid starship-screen">
               <div class="radar-wrap">
                 <div class="radar-ring r1"></div>
@@ -307,25 +444,19 @@
                 <div class="radar-ring r3"></div>
                 <div class="radar-sweep"></div>
               </div>
-              <div>OXYGEN RESERVE <strong>18%</strong></div>
-              <div>POWER CELLS <strong>2</strong></div>
-              <div>HAB STABILITY <strong>29%</strong></div>
-              <div class="mode-screen-foot">ROUTE AUX POWER NOW // CONNECT CHARGER</div>
+              <div class="mode-screen-foot">CONNECT POWER</div>
             </div>
           `
         },
         reactor: {
           className: 'mode-reactor',
           html: `
-            <p class="mode-preview-kicker">Preview — Reactor</p>
-            <h3>REACTOR CONTROL // CONTAINMENT GRID</h3>
-            <p class="mode-preview-sub">RUNAWAY REACTION DETECTED</p>
+            <p class="mode-preview-kicker">Preview — Reactor Meltdown</p>
+            <h3>REACTOR MELTDOWN</h3>
+            <p class="mode-preview-sub">PRO</p>
             <div class="mode-screen-grid reactor-screen">
-              <div>CORE TEMP <strong>1540C</strong></div>
-              <div>PRESSURE <strong>244%</strong></div>
-              <div>CONTAINMENT <strong>11%</strong></div>
               <div class="containment-bar"><span></span></div>
-              <div class="mode-screen-foot">CONTAINMENT BREACH IN 2</div>
+              <div class="mode-screen-foot">CONNECT POWER</div>
             </div>
           `
         }
@@ -343,7 +474,7 @@
           btn.classList.toggle('is-active', btn.dataset.mode === mode);
         });
 
-        preview.classList.remove('mode-matrix', 'mode-vitals', 'mode-mission', 'mode-starship', 'mode-reactor');
+        preview.classList.remove('mode-default', 'mode-matrix', 'mode-vitals', 'mode-mission', 'mode-starship', 'mode-reactor');
         preview.classList.add(config.className);
         previewContent.innerHTML = config.html;
       }
@@ -362,7 +493,7 @@
         const y = window.scrollY || 0;
 
         if (heroPulse) {
-          const pulse = Math.min(1, y / 280); // more obvious, tied directly to scroll depth
+          const pulse = Math.min(1, y / 280);
           heroPulse.style.setProperty('--pulse', pulse.toFixed(3));
         }
 
@@ -377,8 +508,37 @@
       window.addEventListener('scroll', updateScrollEffects, { passive: true });
       window.addEventListener('resize', updateScrollEffects);
       updateScrollEffects();
+      setMode('default');
 
-      setMode('matrix');
+      let checkoutPending = false;
+      async function startCheckout(button) {
+        if (checkoutPending) return;
+        checkoutPending = true;
+        const buyButtons = [...document.querySelectorAll('[data-buy-pro]')];
+        const status = button.parentElement.querySelector(':scope > .buy-status') || document.getElementById('buy-pro-status');
+        buyButtons.forEach((item) => { item.disabled = true; });
+        if (status) status.textContent = 'Opening checkout…';
+        try {
+          const response = await fetch(CHECKOUT_URL, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ machineName: '' }),
+          });
+          const payload = await response.json();
+          if (!response.ok || typeof payload.url !== 'string') {
+            throw new Error(payload.error || 'Checkout is unavailable right now.');
+          }
+          window.location.assign(payload.url);
+        } catch (error) {
+          if (status) status.textContent = error.message || 'Checkout is unavailable right now.';
+          checkoutPending = false;
+          buyButtons.forEach((item) => { item.disabled = false; });
+        }
+      }
+
+      document.querySelectorAll('[data-buy-pro]').forEach((button) => {
+        button.addEventListener('click', () => { startCheckout(button); });
+      });
     </script>
   </body>
 </html>

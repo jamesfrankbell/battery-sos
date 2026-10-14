@@ -24,16 +24,26 @@ const {
 } = require('./store');
 
 const CLIENT_DIR = path.resolve(__dirname, '..', 'website');
+const CHECKOUT_SITE_ORIGINS = new Set([
+  'https://batterysos.app',
+  'https://www.batterysos.app',
+]);
 const DOWNLOADS_DIR = path.resolve(__dirname, '..', 'mac', 'dist');
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.dmg': 'application/x-apple-diskimage',
   '.html': 'text/html; charset=utf-8',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
   '.sha256': 'text/plain; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.webp': 'image/webp',
+  '.xml': 'application/xml; charset=utf-8',
 };
 
 function sendJson(res, statusCode, payload) {
@@ -113,7 +123,19 @@ async function handleApi(req, res, pathname) {
     return;
   }
 
-  if (req.method === 'POST' && pathname === '/api/billing/create-checkout-session') {
+  if ((req.method === 'POST' || req.method === 'OPTIONS') && pathname === '/api/billing/create-checkout-session') {
+    const origin = String(req.headers.origin || '');
+    if (CHECKOUT_SITE_ORIGINS.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
     const payload = await parseBody(req);
     const session = await createCheckoutSession(payload.machineName);
     sendJson(res, 200, session);
@@ -163,7 +185,7 @@ async function handleApi(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/billing/webhook') {
     const raw = await parseRawBody(req);
     const signature = req.headers['stripe-signature'] || '';
-    sendJson(res, 200, handleStripeWebhook(raw, signature));
+    sendJson(res, 200, await handleStripeWebhook(raw, signature));
     return;
   }
 
@@ -230,6 +252,14 @@ function resolveStaticFile(pathname) {
 
   if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
     return absolutePath;
+  }
+
+  // /mac-low-battery-alert serves website/mac-low-battery-alert.html.
+  if (!path.extname(absolutePath)) {
+    const htmlPath = `${absolutePath}.html`;
+    if (htmlPath.startsWith(CLIENT_DIR) && fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
+      return htmlPath;
+    }
   }
 
   return null;

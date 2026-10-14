@@ -49,10 +49,10 @@ test('mock checkout, unpaid/delayed payment, activation, invalid key and restart
   assert.match((await billing.createCheckoutSession('Fixture Mac')).url, /checkout.example.invalid/);
   assert.equal((await billing.finalizeCheckoutSession(session.id)).ready, false);
   assert.equal(billing.getLicenseBySessionId(session.id), null);
-  deliver(billing, session);
+  await deliver(billing, session);
   assert.equal(billing.getLicenseBySessionId(session.id), null);
   session = paid();
-  deliver(billing, session, 'checkout.session.async_payment_succeeded');
+  await deliver(billing, session, 'checkout.session.async_payment_succeeded');
   const result = await billing.finalizeCheckoutSession(session.id);
   assert.equal(result.ready, true);
   assert.equal(billing.verifyLicenseKey('invalid', 'Fixture Mac').valid, false);
@@ -61,20 +61,20 @@ test('mock checkout, unpaid/delayed payment, activation, invalid key and restart
   billing = load('journey');
   assert.equal(billing.verifyLicenseKey(result.key, 'Fixture Mac').valid, true);
   assert.equal(billing.verifyLicenseKey(result.key, 'Different Mac').valid, false);
-  deliver(billing, session);
+  await deliver(billing, session);
   assert.equal(billing.getBillingAdminSummary().totals.licenses, 1);
   assert.equal(billing.getLicenseBySessionId(session.id).key, result.key);
   assert.match(billing.renderCancelPage(), /Checkout Cancelled/);
 });
 
-test('stale, future, malformed and forged signatures cannot issue licenses', () => {
+test('stale, future, malformed and forged signatures cannot issue licenses', async () => {
   const billing = load('webhooks'), now = Math.floor(Date.now()/1000);
-  for (const stamp of [now-301, now+301, 'NaN']) assert.throws(() => deliver(billing, paid(), undefined, stamp));
-  assert.throws(() => deliver(billing, paid(), undefined, now, 'garbage'));
-  assert.throws(() => billing.handleStripeWebhook('{}', `t=${now},v1=${'0'.repeat(64)}`));
+  for (const stamp of [now-301, now+301, 'NaN']) await assert.rejects(() => deliver(billing, paid(), undefined, stamp));
+  await assert.rejects(() => deliver(billing, paid(), undefined, now, 'garbage'));
+  await assert.rejects(() => billing.handleStripeWebhook('{}', `t=${now},v1=${'0'.repeat(64)}`));
   assert.equal(billing.getBillingAdminSummary().totals.licenses, 0);
-  deliver(billing, paid(), undefined, now);
-  deliver(billing, paid(), undefined, now);
+  await deliver(billing, paid(), undefined, now);
+  await deliver(billing, paid(), undefined, now);
   assert.equal(billing.getBillingAdminSummary().totals.licenses, 1);
 });
 
@@ -85,8 +85,8 @@ test('corrupt, empty and inconsistent stores fail closed without modifying origi
   }
 });
 
-test('failed persistence neither binds the in-memory license nor damages prior bytes', () => {
-  const billing = load('write-failure'); deliver(billing, paid());
+test('failed persistence neither binds the in-memory license nor damages prior bytes', async () => {
+  const billing = load('write-failure'); await deliver(billing, paid());
   const file = path.join(root, 'write-failure/billing-data.json'), before = fs.readFileSync(file);
   const rename = fs.renameSync;
   fs.renameSync = () => { throw new Error('isolated disk failure'); };
@@ -99,7 +99,7 @@ test('failed persistence neither binds the in-memory license nor damages prior b
 });
 
 test('recovery HTTP route reveals nothing without existing administrator authorization', async () => {
-  const billing = load('recovery'); deliver(billing, paid());
+  const billing = load('recovery'); await deliver(billing, paid());
   // Never load LocalFlow's unrelated real data store.
   const storePath = path.join(__dirname, 'store.js');
   const oldStore = require.cache[storePath]; require.cache[storePath] = { loaded: true, exports: Object.fromEntries(['createDocument','createTask','deleteDocument','deleteTask','getState','updateDocument','updateTask'].map(name=>[name,()=>{throw new Error('Unrelated store must not be used');}])) };
@@ -152,6 +152,179 @@ test('success-page waiting is bounded when payment stays pending', async () => {
   await new Promise(resolve=>setImmediate(resolve));
   while(timers.length) {timers.shift()();await new Promise(resolve=>setImmediate(resolve));}
   assert.equal(requests,30);assert.equal(elements['key-slot'].innerHTML,'');
+});
+
+function legacy2019CheckoutSession(id = 'cs_test_20190314') {
+  return {
+    id,
+    object: 'checkout.session',
+    billing_address_collection: null,
+    cancel_url: 'https://pay.batterysos.app/billing/cancel',
+    client_reference_id: null,
+    customer: 'cus_20190314',
+    customer_email: null,
+    display_items: [{
+      amount: 100,
+      currency: 'usd',
+      custom: { description: null, images: null, name: 'Battery SOS Pro' },
+      quantity: 1,
+      type: 'custom',
+    }],
+    livemode: false,
+    locale: null,
+    payment_intent: 'pi_20190314',
+    payment_method_types: ['card'],
+    subscription: null,
+    success_url: 'https://pay.batterysos.app/billing/success?session_id={CHECKOUT_SESSION_ID}',
+  };
+}
+
+test('2019-03-14 checkout.session.completed issues a key only after a paid current-version retrieve', async () => {
+  const billing = load('legacy-api-2019-03-14');
+  const legacy = legacy2019CheckoutSession();
+  assert.equal(Object.hasOwn(legacy, 'payment_status'), false);
+  assert.equal(Object.hasOwn(legacy, 'customer_details'), false);
+  assert.equal(Object.hasOwn(legacy, 'metadata'), false);
+  const calls = [];
+  global.fetch = async () => ({ ok: false, json: async () => ({ error: { message: 'isolated retrieve failure' } }) });
+  await assert.rejects(() => deliver(billing, legacy), /isolated retrieve failure/);
+  assert.equal(billing.getLicenseBySessionId(legacy.id), null);
+
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url, version: options.headers?.['Stripe-Version'] || '' });
+    return { ok: true, json: async () => ({ ...paid(legacy.id), payment_status: 'unpaid', customer_details: null, customer_email: null }) };
+  };
+  await deliver(billing, legacy);
+  assert.deepEqual(calls, [{
+    url: 'https://api.stripe.com/v1/checkout/sessions/cs_test_20190314',
+    version: '2022-11-15',
+  }]);
+  assert.equal(billing.getLicenseBySessionId(legacy.id), null);
+
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url, version: options.headers?.['Stripe-Version'] || '' });
+    return { ok: true, json: async () => paid(legacy.id) };
+  };
+  await deliver(billing, legacy, 'checkout.session.completed');
+  const license = billing.getLicenseBySessionId(legacy.id);
+  assert.equal(license.email, 'buyer@example.invalid');
+  assert.equal(license.originalMachineName, 'Fixture Mac');
+  await deliver(billing, legacy);
+  assert.equal(billing.getBillingAdminSummary().totals.licenses, 1);
+  assert.equal(calls.filter((call) => call.version === '2022-11-15').length, 2);
+});
+
+test('public site can preflight checkout without exposing other origins', async () => {
+  delete require.cache[require.resolve('./router')];
+  const handler = require('./router').createRequestHandler();
+  async function request(method, origin) {
+    const req = new PassThrough();
+    Object.assign(req, {
+      method,
+      url: '/api/billing/create-checkout-session',
+      headers: { origin, 'content-type': 'application/json' },
+    });
+    let code;
+    const headers = {};
+    const res = {
+      setHeader(name, value) { headers[name.toLowerCase()] = value; },
+      writeHead(status) { code = status; },
+      end() {},
+    };
+    const pending = handler(req, res);
+    req.end();
+    await pending;
+    return { code, headers };
+  }
+  const allowed = await request('OPTIONS', 'https://batterysos.app');
+  assert.equal(allowed.code, 204);
+  assert.equal(allowed.headers['access-control-allow-origin'], 'https://batterysos.app');
+  assert.match(allowed.headers['access-control-allow-methods'], /POST/);
+  const denied = await request('OPTIONS', 'https://evil.example');
+  assert.equal(denied.code, 204);
+  assert.equal(denied.headers['access-control-allow-origin'], undefined);
+});
+
+test('discoverability files and landing pages are served with the right content types', async () => {
+  load('seo-static');
+  delete require.cache[require.resolve('./router')];
+  const handler = require('./router').createRequestHandler();
+  async function get(url) {
+    const req = new PassThrough();
+    Object.assign(req, { method: 'GET', url, headers: {} });
+    const res = new PassThrough();
+    let code;
+    let headers = {};
+    res.writeHead = (status, nextHeaders) => { code = status; headers = nextHeaders || {}; return res; };
+    const chunks = [];
+    res.on('data', (chunk) => chunks.push(chunk));
+    const done = new Promise((resolve) => res.on('end', resolve));
+    const pending = handler(req, res);
+    req.end();
+    await pending;
+    await done;
+    return { code, headers, body: Buffer.concat(chunks) };
+  }
+
+  const sitemap = await get('/sitemap.xml');
+  assert.equal(sitemap.code, 200);
+  assert.match(sitemap.headers['content-type'], /^application\/xml/);
+  const xml = sitemap.body.toString('utf8');
+  for (const loc of ['https://batterysos.app/', 'https://batterysos.app/mac-low-battery-alert', 'https://batterysos.app/macbook-battery-warning-app', 'https://batterysos.app/louder-mac-battery-warning']) {
+    assert.match(xml, new RegExp(loc.replace(/[/.]/g, '\\$&')));
+  }
+
+  const robots = await get('/robots.txt');
+  assert.equal(robots.code, 200);
+  assert.match(robots.headers['content-type'], /^text\/plain/);
+  assert.match(robots.body.toString('utf8'), /Sitemap: https:\/\/batterysos\.app\/sitemap\.xml/);
+
+  const llms = await get('/llms.txt');
+  assert.equal(llms.code, 200);
+  assert.match(llms.headers['content-type'], /^text\/plain/);
+  assert.match(llms.body.toString('utf8'), /Apple silicon/);
+  assert.match(llms.body.toString('utf8'), /Intel Macs are not supported/);
+  assert.match(llms.body.toString('utf8'), /1\.00 USD/);
+
+  const image = await get('/og.jpg');
+  assert.equal(image.code, 200);
+  assert.equal(image.headers['content-type'], 'image/jpeg');
+  assert.equal(image.body[0], 0xff);
+  assert.equal(image.body[1], 0xd8);
+
+  const home = await get('/');
+  assert.match(home.headers['content-type'], /^text\/html/);
+  const homeHtml = home.body.toString('utf8');
+  assert.match(homeHtml, /rel="canonical" href="https:\/\/batterysos\.app\/"/);
+  assert.match(homeHtml, /property="og:image" content="https:\/\/batterysos\.app\/og\.jpg"/);
+  assert.match(homeHtml, /name="twitter:card" content="summary_large_image"/);
+  const blocks = [...homeHtml.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((match) => JSON.parse(match[1]));
+  const app = blocks.find((block) => block['@type'] === 'SoftwareApplication');
+  const faq = blocks.find((block) => block['@type'] === 'FAQPage');
+  assert.equal(app.operatingSystem, 'macOS');
+  assert.equal(app.offers['@type'], 'Offer');
+  assert.equal(app.offers.price, '1.00');
+  assert.equal(app.offers.priceCurrency, 'USD');
+  assert.deepEqual(faq.mainEntity.map((item) => item.name), [
+    'Why is my Mac low battery warning not showing?',
+    'How do I get a louder battery alert on a MacBook?',
+    'Does Battery SOS work on Intel Macs?',
+    'How much does Battery SOS cost?',
+  ]);
+  assert.match(faq.mainEntity[2].acceptedAnswer.text, /^No\. This build is Apple silicon only/);
+  for (const item of faq.mainEntity) assert.match(homeHtml, new RegExp(item.name.replace(/[?]/g, '\\?')));
+
+  const landing = await get('/mac-low-battery-alert');
+  assert.equal(landing.code, 200);
+  assert.match(landing.headers['content-type'], /^text\/html/);
+  const landingHtml = landing.body.toString('utf8');
+  assert.match(landingHtml, /<h1>Mac low battery alert<\/h1>/);
+  assert.match(landingHtml, /does not control the macOS low-battery notification/);
+  assert.doesNotMatch(landingHtml, /Your Mac whispers/);
+  const other = await get('/macbook-battery-warning-app');
+  assert.match(other.body.toString('utf8'), /<h1>MacBook battery warning app<\/h1>/);
+  const louder = await get('/louder-mac-battery-warning');
+  assert.match(louder.body.toString('utf8'), /does not turn up the macOS alert volume/);
 });
 
 test('activation persists across an actual fresh Node process', () => {

@@ -15,6 +15,11 @@ This is the existing single-process design, not a multi-writer database.
 Stripe webhook signatures must be well formed and within five minutes of server
 time. Both completed checkout and delayed-payment success events can issue a
 license, only for paid sessions. Session-based issuance remains idempotent.
+An endpoint pinned to API version 2019-03-14 sends `checkout.session.completed`
+without `payment_status` or `customer_details`. That snapshot's `customer_email`
+is the prefill, not the address entered in Checkout. The handler retrieves the
+session with `Stripe-Version: 2022-11-15` and still issues a key only when the
+retrieved `payment_status` is `paid`.
 Success pages poll for up to one minute, then instruct the customer to refresh.
 
 The existing one-Mac activation rule and pricing are preserved. Empty machine
