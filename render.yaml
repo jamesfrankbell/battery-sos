@@ -3,8 +3,7 @@ services:
     name: battery-sos-billing
     runtime: node
     plan: starter
-    rootDir: apps/battery-sos
-    buildCommand: npm ci
+    buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/billing/status
     envVars:
