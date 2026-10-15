@@ -9,6 +9,8 @@ PREFERENCES_FILE="$MAC_DIR/AppPreferences.swift"
 AUDIO_FILE="$MAC_DIR/AlertAudio.swift"
 AUDIO_PLAYER_FILE="$MAC_DIR/AlertAudioPlayer.swift"
 PRO_FILE="$MAC_DIR/ProBatteryFeatures.swift"
+WELCOME_FILE="$MAC_DIR/WelcomeWindow.swift"
+ICON_FILE="$MAC_DIR/AppIcon.icns"
 
 APP_NAME="${APP_NAME:-Battery SOS}"
 EXECUTABLE_NAME="${EXECUTABLE_NAME:-BatterySOS}"
@@ -29,8 +31,14 @@ SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://batterysos.app/appcast.xml}"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-TzMjfdFQ2JZ6UhrkUQB+FUpZ8pWAhKtrTk74ytAx3To=}"
 APP_SIGN_IDENTITY="${APP_SIGN_IDENTITY:--}"
 
-if [[ ! -f "$SRC_FILE" || ! -f "$STATE_FILE" || ! -f "$PREFERENCES_FILE" || ! -f "$AUDIO_FILE" || ! -f "$AUDIO_PLAYER_FILE" || ! -f "$PRO_FILE" ]]; then
-  echo "Source file not found: $SRC_FILE" >&2
+for source in "$SRC_FILE" "$STATE_FILE" "$PREFERENCES_FILE" "$AUDIO_FILE" "$AUDIO_PLAYER_FILE" "$PRO_FILE" "$WELCOME_FILE"; do
+  if [[ ! -f "$source" ]]; then
+    echo "Source file not found: $source" >&2
+    exit 1
+  fi
+done
+if [[ ! -f "$ICON_FILE" ]]; then
+  echo "App icon not found: $ICON_FILE" >&2
   exit 1
 fi
 
@@ -57,7 +65,7 @@ fi
 mkdir -p "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources" "$APP_PATH/Contents/Frameworks"
 
 xcrun --sdk macosx swiftc \
-  "$SRC_FILE" "$STATE_FILE" "$PREFERENCES_FILE" "$AUDIO_FILE" "$AUDIO_PLAYER_FILE" "$PRO_FILE" \
+  "$SRC_FILE" "$STATE_FILE" "$PREFERENCES_FILE" "$AUDIO_FILE" "$AUDIO_PLAYER_FILE" "$PRO_FILE" "$WELCOME_FILE" \
   -parse-as-library \
   -O \
   -target "$TARGET_ARCH-apple-macosx$MIN_OS_VERSION" \
@@ -81,6 +89,7 @@ if strings "$APP_PATH/Contents/MacOS/$EXECUTABLE_NAME" | grep -F 'http://127.0.0
 fi
 
 ditto "$SPARKLE_FRAMEWORK" "$APP_PATH/Contents/Frameworks/$(basename "$SPARKLE_FRAMEWORK")"
+cp "$ICON_FILE" "$APP_PATH/Contents/Resources/AppIcon.icns"
 
 cat > "$APP_PATH/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -99,6 +108,8 @@ cat > "$APP_PATH/Contents/Info.plist" <<EOF
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -136,6 +147,8 @@ plutil -insert PreferencesSHA256 -string "$(shasum -a 256 "$PREFERENCES_FILE" | 
 plutil -insert AudioSHA256 -string "$(shasum -a 256 "$AUDIO_FILE" | awk '{print $1}')" "$PROVENANCE"
 plutil -insert AudioPlayerSHA256 -string "$(shasum -a 256 "$AUDIO_PLAYER_FILE" | awk '{print $1}')" "$PROVENANCE"
 plutil -insert ProFeaturesSHA256 -string "$(shasum -a 256 "$PRO_FILE" | awk '{print $1}')" "$PROVENANCE"
+plutil -insert WelcomeSHA256 -string "$(shasum -a 256 "$WELCOME_FILE" | awk '{print $1}')" "$PROVENANCE"
+plutil -insert IconSHA256 -string "$(shasum -a 256 "$ICON_FILE" | awk '{print $1}')" "$PROVENANCE"
 plutil -insert BuildScriptSHA256 -string "$BUILD_SCRIPT_SHA256" "$PROVENANCE"
 plutil -insert BuildNumber -string "$BUILD_NUMBER" "$PROVENANCE"
 plutil -insert Target -string "$TARGET_ARCH-apple-macosx$MIN_OS_VERSION" "$PROVENANCE"

@@ -7,12 +7,14 @@ final class AVAlertAudioOutput: AlertAudioOutput {
     private let format = AVAudioFormat(standardFormatWithSampleRate: AlertAudioSynthesis.sampleRate, channels: 1)!
     private var buffers: [AlertAudioCue: AVAudioPCMBuffer] = [:]
     private let manualRendering: Bool
+    private var outputGain: Float = 1
 
     init(manualRendering: Bool = false) throws {
         self.manualRendering = manualRendering
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
         engine.mainMixerNode.outputVolume = AlertAudioSynthesis.mixerVolume
+        player.volume = outputGain
         if manualRendering {
             try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
         }
@@ -32,6 +34,10 @@ final class AVAlertAudioOutput: AlertAudioOutput {
             // A transient device failure can retry at the next sound event.
             player.stop()
         }
+    }
+    func setOutputGain(_ gain: Float) {
+        outputGain = min(1, max(0, gain))
+        player.volume = outputGain
     }
     func stop() {
         player.stop()

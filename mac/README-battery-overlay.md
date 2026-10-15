@@ -17,8 +17,9 @@ Build both Swift source files through the supported bundle script:
 VERSION=1.0.1 BUILD_NUMBER=YYYYMMDDHHMM DIST_DIR=/tmp/battery-sos-YYYYMMDDHHMM mac/scripts/build-app.sh
 ```
 
-The default warning remains 1%, and sound preferences retain their existing
-behavior. `Test SOS` works without a battery, showing unknown battery percentage
+The default warning remains 1%. Calm Alerts holds the full-screen pulse steady, skips decorative flashing, and plays the selected theme at 40% of its volume. Theme Volume is stored per mode from Off through 100% and defaults to 100%. Mute still wins. The first launch opens a short welcome window: the full-screen alert at the chosen percent (default 1%), the Pro heads-up from 15% to 40%, and snooze with 1% breaking through while charge reminders only remind. It also says the menu-bar icon is at the right end of the menu bar. Got it dismisses it. Try Test SOS starts a preview. Settings → How Warnings Work… shows the window again. Launching the app while it is already running opens that window and the menu, because the app has no Dock icon. The status item is a template battery with the exclamation mark centered in the battery body, crisp at 18pt @1x and @2x, or the title SOS if that image is unavailable. `AppIcon.icns` is copied into the bundle and named by `CFBundleIconFile`.
+
+`Test SOS` works without a battery, showing unknown battery percentage
 rather than inventing a value. Closing a preview ends it. A low-battery warning
 can return on the next sample after preview dismissal; this preserves the actual
 warning behavior. Sleep ends previews and suppresses alerts until wake, when a
@@ -127,10 +128,12 @@ export BATTERY_SOS_BILLING_URL="https://yourdomain.com"
 
 ## Notes
 
-- A `Battery SOS` menu bar item is added so you can quit the tool.
+- A template `Battery SOS` menu bar item is added at the right end of the menu bar so you can quit the tool. Launch the app again if the notch hides it.
 - The menu also includes `Test SOS` so you can trigger the flashing overlay on demand.
 - The menu includes `Settings -> Warning Percentage` where you can choose `1%` through `10%`.
 - The menu includes `Settings -> Mute Sound Effects` with a checkmark toggle.
+- The menu includes `Settings -> Calm Alerts` and `Settings -> Theme Volume` (Off, 25%, 50%, 75%, 100% for each mode).
+- The menu includes `Settings -> Deactivate This Mac…` (3 transfers to a different Mac per year) and `Settings -> Email Me My License Key…`.
 - The menu includes `Settings -> Start at Login` (works when running as installed `.app` bundle).
 - Monetization behavior:
   - `Default Warning` is free.

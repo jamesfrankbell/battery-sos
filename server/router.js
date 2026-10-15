@@ -1,7 +1,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {
+  confirmLicenseRecovery,
   createCheckoutSession,
+  deactivateDevice,
   finalizeCheckoutSession,
   getBillingAdminSummary,
   getBillingConfig,
@@ -9,7 +11,9 @@ const {
   isValidAdminToken,
   recoverLicenseByEmail,
   renderCancelPage,
+  renderRecoveryPage,
   renderSuccessPage,
+  requestLicenseRecovery,
   verifyLicenseKey,
 } = require('./billing');
 
@@ -49,7 +53,12 @@ function sendError(res, statusCode, message) {
 }
 
 function sendHtml(res, html, statusCode = 200) {
-  res.writeHead(statusCode, { 'content-type': 'text/html; charset=utf-8' });
+  res.writeHead(statusCode, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+  });
   res.end(html);
 }
 
@@ -91,6 +100,21 @@ function parseBody(req) {
   });
 }
 
+function clientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.socket?.remoteAddress || '';
+}
+
+async function parseAnyBody(req) {
+  const raw = await parseRawBody(req);
+  const type = String(req.headers['content-type'] || '');
+  if (type.includes('application/x-www-form-urlencoded')) {
+    return Object.fromEntries(new URLSearchParams(raw));
+  }
+  if (!raw.trim()) return {};
+  return JSON.parse(raw);
+}
+
 function parseRawBody(req) {
   return new Promise((resolve, reject) => {
     let raw = '';
@@ -122,7 +146,30 @@ async function handleApi(req, res, pathname) {
 
   if (req.method === 'POST' && pathname === '/api/billing/verify-license') {
     const payload = await parseBody(req);
-    sendJson(res, 200, verifyLicenseKey(payload.licenseKey, payload.machineName));
+    sendJson(res, 200, verifyLicenseKey(payload.licenseKey, payload.machineName, payload.deviceId));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/billing/deactivate') {
+    const payload = await parseBody(req);
+    sendJson(res, 200, deactivateDevice(payload.licenseKey, payload.deviceId, payload.machineName));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/billing/recover/request') {
+    const payload = await parseBody(req);
+    sendJson(res, 200, await requestLicenseRecovery({ email: payload.email, ip: clientIp(req) }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/billing/recover/confirm') {
+    const payload = await parseBody(req);
+    sendJson(res, 200, confirmLicenseRecovery({
+      email: payload.email,
+      code: payload.code,
+      token: payload.token,
+      ip: clientIp(req),
+    }));
     return;
   }
 
@@ -251,7 +298,37 @@ function handleStatic(res, pathname) {
   sendError(res, 404, 'File not found.');
 }
 
-function handleBillingPage(res, requestUrl) {
+async function handleBillingPage(req, res, requestUrl) {
+  if (requestUrl.pathname === '/billing/recover' && req.method === 'GET') {
+    const token = requestUrl.searchParams.get('token') || '';
+    if (token) {
+      const result = confirmLicenseRecovery({ token, ip: clientIp(req) });
+      sendHtml(res, renderRecoveryPage(result));
+      return true;
+    }
+    sendHtml(res, renderRecoveryPage({ kind: 'form' }));
+    return true;
+  }
+
+  if (requestUrl.pathname === '/billing/recover' && req.method === 'POST') {
+    const payload = await parseAnyBody(req);
+    const result = await requestLicenseRecovery({ email: payload.email, ip: clientIp(req) });
+    sendHtml(res, renderRecoveryPage(result));
+    return true;
+  }
+
+  if (requestUrl.pathname === '/billing/recover/confirm' && req.method === 'POST') {
+    const payload = await parseAnyBody(req);
+    const result = confirmLicenseRecovery({
+      email: payload.email,
+      code: payload.code,
+      token: payload.token,
+      ip: clientIp(req),
+    });
+    sendHtml(res, renderRecoveryPage(result));
+    return true;
+  }
+
   if (requestUrl.pathname === '/billing/success') {
     const sessionId = requestUrl.searchParams.get('session_id') || '';
     sendHtml(res, renderSuccessPage(sessionId));
@@ -306,7 +383,7 @@ function createRequestHandler() {
         return;
       }
 
-      if (handleBillingPage(res, requestUrl)) {
+      if (await handleBillingPage(req, res, requestUrl)) {
         return;
       }
 

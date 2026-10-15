@@ -33,7 +33,7 @@ specific revision, worktree hashes and build; older passes do not accept a new b
   `checkout.session.async_payment_succeeded`; only paid sessions issue keys.
 - Server clock accurate enough for the five-minute webhook tolerance.
 - Recovery authorized by existing admin bearer header; anonymous email lookup denied.
-- Self-service recovery requires an approved ownership-verification/delivery workflow.
+- Self-service recovery sends a one-time link or code and reveals the existing key only after that proof. It is not deployed. Production delivery needs `BILLING_EMAIL_PROVIDER=http` before customers can receive it. The console provider is for development and tests.
 
 Do not put credentials in this checklist, command output, URLs or screenshots.
 Account/agreement status is tracked separately; no account change is implied here.
@@ -57,10 +57,8 @@ a newer DMG. Do not reuse hashes, signatures or notarization results from anothe
 
 - Confirm real Support, Privacy and Terms destinations before public release.
 - Approve the final theme/audio/flashing experience after viewing the exact build.
-- Decide whether to add automated email recovery; the current safe path is support-only.
+- Confirm the recovery email provider and its URL before any server deploy that should deliver self-service recovery. The admin path remains available.
 - Agree on hardware/OS coverage or explicitly waive uncovered targets with consequences.
 - Handle account/legal/certificate decisions and release authorization separately.
 
-Retain the existing 1% default, comfort settings, price and licensing/transfer
-policy unless James explicitly changes them. A blocked or unrun required check
-does not count as a pass.
+The $1 price and Free/Pro theme entitlements stay as they are. The emergency threshold still defaults to 1%. A license is active on one Mac, with 3 transfers in a rolling year, bound to a SHA-256 of the hardware UUID. Existing Mac-name activations migrate when that Mac's name still matches. Calm alerts, per-theme volume, the welcome window, the app icon, and the template menu-bar item are in the 1.0.1 app. Publication still requires James's approval. A blocked or unrun required check does not count as a pass.

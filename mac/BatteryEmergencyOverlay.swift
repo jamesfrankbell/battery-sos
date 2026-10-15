@@ -1,8 +1,19 @@
 import Cocoa
 import AVFoundation
+import IOKit
 import IOKit.ps
 import ServiceManagement
 import Sparkle
+
+private func hardwareDeviceId() -> String {
+    let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+    guard service != 0 else { return "" }
+    defer { IOObjectRelease(service) }
+    guard let uuid = IORegistryEntryCreateCFProperty(service, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? String else {
+        return ""
+    }
+    return DeviceIdentityHash.hash(platformUUID: uuid) ?? ""
+}
 
 private final class MonetizationManager {
     private let licenseKeyStorageKey = "BatterySOS.licenseKey"
@@ -47,6 +58,7 @@ private final class AlertTonePlayer {
         playback = output.map { AlertAudioPlayback(output: $0) }
     }
     func setMuted(_ muted: Bool) { playback?.setMuted(muted) }
+    func setOutputGain(_ gain: Double) { playback?.setGain(gain) }
     func playBeat() { playback?.play(.monitorBeat) }
     func startFlatlineLoop() { playback?.play(.monitorFlatline, looping: true) }
     func startDefaultWarningLoop() { playback?.play(.defaultWarning, looping: true) }
@@ -742,9 +754,10 @@ private final class OverlayView: NSView {
                 redactionBlockLabel.stringValue = redactedFrame(index: documentFrameIndex)
                 bottomLineLabel.stringValue = "PROTOCOL 21(A) // DENIABILITY CLAUSE"
                 classifiedStampLabel.isHidden = false
-                classifiedStampLabel.alphaValue = documentFrameIndex.isMultiple(of: 2) ? 0.78 : 0.42
-                centerFrameView.layer?.backgroundColor = NSColor.white.withAlphaComponent(documentFrameIndex.isMultiple(of: 2) ? 0.30 : 0.48).cgColor
-                if Date().timeIntervalSince(lastDocFrameSwitchAt) >= 0.18 {
+                classifiedStampLabel.alphaValue = AlertMotionPolicy.reduced ? 0.72 : (documentFrameIndex.isMultiple(of: 2) ? 0.78 : 0.42)
+                centerFrameView.layer?.backgroundColor = NSColor.white.withAlphaComponent(AlertMotionPolicy.reduced ? 0.4 : (documentFrameIndex.isMultiple(of: 2) ? 0.30 : 0.48)).cgColor
+                let frameInterval = AlertMotionPolicy.reduced ? 2.0 : 0.18
+                if Date().timeIntervalSince(lastDocFrameSwitchAt) >= frameInterval {
                     documentFrameIndex += 1
                     lastDocFrameSwitchAt = Date()
                 }
@@ -995,7 +1008,7 @@ private final class OverlayView: NSView {
             }
 
             let pulse = (sin(Date().timeIntervalSince1970 * 6.0) + 1.0) / 2.0
-            alertLabel.alphaValue = elapsed > 9.5 ? (0.45 + (0.55 * pulse)) : 0.9
+            alertLabel.alphaValue = AlertMotionPolicy.reduced ? 0.9 : (elapsed > 9.5 ? (0.45 + (0.55 * pulse)) : 0.9)
             if elapsed > 13.6 {
                 alertLabel.stringValue = "SCRAM FAILED - PLUG IN POWER NOW"
             } else {
@@ -1265,7 +1278,7 @@ private final class OverlayView: NSView {
                 : "POWER WINDOW CLOSED // MANUAL POWER ATTACH REQUIRED"
 
             let warningPulse = (sin(Date().timeIntervalSince1970 * 7.5) + 1.0) / 2.0
-            warningLabel.alphaValue = dockCountdown == 0 ? (0.45 + warningPulse * 0.55) : 1.0
+            warningLabel.alphaValue = AlertMotionPolicy.reduced ? 1 : (dockCountdown == 0 ? (0.45 + warningPulse * 0.55) : 1.0)
             warningLabel.stringValue = dockCountdown == 0
                 ? "ATTACH POWER TO MAINTAIN LIFE SUPPORT"
                 : "ROUTE AUX POWER NOW // CONNECT CHARGER"
@@ -1286,6 +1299,7 @@ private final class OverlayView: NSView {
         }
 
         private func twinkleStars() {
+            guard !AlertMotionPolicy.reduced else { return }
             for (index, star) in starLayers.enumerated() where index.isMultiple(of: 4) {
                 if Bool.random() {
                     star.opacity = Float.random(in: 0.22...0.92)
@@ -1313,7 +1327,7 @@ private final class OverlayView: NSView {
             grid.addLine(to: CGPoint(x: center.x, y: center.y + radius))
             radarGridLayer.path = grid
 
-            let angle = CGFloat(Date().timeIntervalSince(startedAt) * 1.45)
+            let angle = AlertMotionPolicy.reduced ? 0 : CGFloat(Date().timeIntervalSince(startedAt) * 1.45)
             let sweepEnd = CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
             let sweep = CGMutablePath()
             sweep.move(to: center)
@@ -1413,6 +1427,7 @@ private final class OverlayView: NSView {
             }
 
             private func tick() {
+                if AlertMotionPolicy.reduced { return }
                 let lineHeight = (font.ascender - font.descender + 2)
                 for i in columns.indices {
                     columns[i].offset -= columns[i].speed
@@ -1534,7 +1549,7 @@ private final class OverlayView: NSView {
             let value = Int((elapsed * 173.0).truncatingRemainder(dividingBy: 1_000_000))
             counterLabel.stringValue = String(format: "%06d", value)
             let pulse = (sin(elapsed * 3.0) + 1.0) / 2.0
-            overlayPanel.alphaValue = 0.82 + (0.16 * pulse)
+            overlayPanel.alphaValue = AlertMotionPolicy.reduced ? 0.9 : (0.82 + (0.16 * pulse))
             if Int(elapsed) % 4 == 0 {
                 statusLabel.stringValue = "POWER SOURCE ANOMALY // CONNECT CHARGER"
             } else {
@@ -2174,6 +2189,10 @@ private final class OverlayView: NSView {
         tonePlayer.setMuted(muted)
     }
 
+    func setOutputGain(_ gain: Double) {
+        tonePlayer.setOutputGain(gain)
+    }
+
     func startAlertAnimations() {
         switch mode {
         case .defaultWarning:
@@ -2369,6 +2388,8 @@ private final class OverlayManager {
     private var currentPulseAlpha: CGFloat = 0.5
     private var latestBatteryPercent: Int?
     private var soundMuted = false
+    private var calmAlerts = false
+    private var outputGain = 1.0
     private var snoozeAvailable = false
 
     func setSnoozeAvailable(_ available: Bool) {
@@ -2385,16 +2406,24 @@ private final class OverlayManager {
         controllers.forEach { $0.overlayView.mode = mode }
 
         if isVisible {
-            if mode == .defaultWarning {
-                startPulse()
-            } else {
-                stopPulse()
-                controllers.forEach { $0.overlayView.setOverlayAlpha(currentPulseAlpha) }
-            }
+            updatePulseState()
             controllers.forEach { $0.overlayView.restartAlertAnimations() }
         } else {
             stopPulse()
         }
+    }
+
+    func setCalmAlerts(_ calm: Bool) {
+        calmAlerts = calm
+        AlertMotionPolicy.reduced = calm
+        guard isVisible else { return }
+        updatePulseState()
+        controllers.forEach { $0.overlayView.restartAlertAnimations() }
+    }
+
+    func setOutputGain(_ gain: Double) {
+        outputGain = gain
+        controllers.forEach { $0.overlayView.setOutputGain(gain) }
     }
 
     func setBatteryPercent(_ percent: Int?) {
@@ -2426,15 +2455,20 @@ private final class OverlayManager {
             controller.overlayView.mode = mode
             controller.setBatteryPercent(latestBatteryPercent)
             controller.overlayView.setSoundMuted(soundMuted)
+            controller.overlayView.setOutputGain(outputGain)
             return controller
         }
         controllers.forEach { $0.show() }
+        updatePulseState()
+    }
 
-        if mode == .defaultWarning {
+    private func updatePulseState() {
+        if mode == .defaultWarning && !calmAlerts {
             startPulse()
         } else {
             stopPulse()
-            controllers.forEach { $0.overlayView.setOverlayAlpha(currentPulseAlpha) }
+            let alpha: CGFloat = calmAlerts ? 0.62 : currentPulseAlpha
+            controllers.forEach { $0.overlayView.setOverlayAlpha(alpha) }
         }
     }
 
@@ -2476,6 +2510,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     private let proPreferences = ProBatteryPreferences(defaults: .standard)
+    private let comfortPreferences = AlertComfortPreferences(defaults: .standard)
     private var proSession = ProBatterySession()
     private var proMenu: NSMenu?
     private var proMenuSnapshot = ""
@@ -2499,6 +2534,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var startAtLoginItem: NSMenuItem?
     private var thresholdMenuItems: [Int: NSMenuItem] = [:]
     private var muteSoundEffectsItem: NSMenuItem?
+    private var calmAlertsItem: NSMenuItem?
+    private var themeVolumeItems: [String: NSMenuItem] = [:]
+    private var deactivateMacItem: NSMenuItem?
     private var unlockProItem: NSMenuItem?
     private var licenseStatusItem: NSMenuItem?
     private var enterLicenseItem: NSMenuItem?
@@ -2510,6 +2548,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         loadThresholdPreference()
         loadSoundPreference()
+        loadComfortPreferences()
         overlay.setSoundMuted(soundEffectsMuted)
 
         overlay.onSnooze = { [weak self] in self?.snoozeSOS(minutes: 5) }
@@ -2536,6 +2575,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let batteryTimer {
             RunLoop.main.add(batteryTimer, forMode: .common)
         }
+        presentOnboardingIfNeeded()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showWelcome()
+        statusItem?.button?.performClick(nil)
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -2664,7 +2710,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        let payload = ["machineName": (Host.current().localizedName ?? ProcessInfo.processInfo.hostName)]
+        let payload = LicenseRequest.checkoutBody(
+            machineName: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
+            deviceId: hardwareDeviceId()
+        )
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
         request.timeoutInterval = 15
@@ -2689,10 +2738,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        let payload: [String: String] = [
-            "licenseKey": licenseKey,
-            "machineName": (Host.current().localizedName ?? ProcessInfo.processInfo.hostName)
-        ]
+        let payload = LicenseRequest.verifyBody(
+            licenseKey: licenseKey,
+            machineName: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
+            deviceId: hardwareDeviceId()
+        )
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
         request.timeoutInterval = 15
@@ -2733,43 +2783,114 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStartAtLoginMenuState()
     }
 
+    private enum MenuBarIconArt {
+        // 18×18 template, top to bottom. '#' is opaque black. Drawn again at @2x by doubling pixels.
+        // The exclamation bbox is centered in the battery body. The nub is not part of that body.
+        static let rows = [
+            "..................",
+            "......######......",
+            "......######......",
+            ".....########.....",
+            "....#........#....",
+            "...#..........#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#..........#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#..........#...",
+            "....#........#....",
+            ".....########.....",
+            "..................",
+        ]
+    }
+
     private func makeStatusBarIcon() -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size, flipped: false) { _ in
-            let bodyRect = NSRect(x: 4.0, y: 2.0, width: 10.0, height: 12.5)
-            let tipRect = NSRect(x: 7.2, y: 14.7, width: 3.6, height: 1.8)
-            let bodyPath = NSBezierPath(roundedRect: bodyRect, xRadius: 2.0, yRadius: 2.0)
-            let tipPath = NSBezierPath(roundedRect: tipRect, xRadius: 0.9, yRadius: 0.9)
-
-            NSColor.white.setFill()
-            bodyPath.fill()
-            tipPath.fill()
-
-            NSColor.white.withAlphaComponent(0.95).setStroke()
-            bodyPath.lineWidth = 1.1
-            bodyPath.stroke()
-
-            let warning = NSAttributedString(
-                string: "!",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 12.0, weight: .black),
-                    .foregroundColor: NSColor.black.withAlphaComponent(0.9)
-                ]
-            )
-            warning.draw(at: NSPoint(x: 6.85, y: 2.45))
-            return true
+        if let custom = customStatusBarIcon() {
+            return custom
         }
-        image.isTemplate = false
+        let names = ["battery.25percent", "battery.25", "battery.100percent", "battery.100"]
+        for name in names {
+            if let symbol = NSImage(systemSymbolName: name, accessibilityDescription: "Battery SOS") {
+                let configured = symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 16, weight: .bold)) ?? symbol
+                configured.isTemplate = true
+                configured.size = NSSize(width: 18, height: 18)
+                return configured
+            }
+        }
+        return NSImage(size: .zero)
+    }
+
+    private func customStatusBarIcon() -> NSImage? {
+        guard let one = menuBarIconRepresentation(scale: 1),
+              let two = menuBarIconRepresentation(scale: 2) else { return nil }
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.addRepresentation(one)
+        image.addRepresentation(two)
+        image.isTemplate = true
         return image
     }
 
+    private func menuBarIconRepresentation(scale: Int) -> NSBitmapImageRep? {
+        let rows = MenuBarIconArt.rows
+        let side = 18 * scale
+        guard side > 0,
+              let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: side,
+                pixelsHigh: side,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .calibratedRGB,
+                bytesPerRow: side * 4,
+                bitsPerPixel: 32
+              ),
+              let data = rep.bitmapData else { return nil }
+        rep.size = NSSize(width: 18, height: 18)
+        for index in 0..<(side * side * 4) {
+            data[index] = 0
+        }
+        for (y, row) in rows.enumerated() {
+            for (x, pixel) in row.enumerated() where pixel == "#" {
+                for dy in 0..<scale {
+                    for dx in 0..<scale {
+                        let offset = ((y * scale + dy) * side + (x * scale + dx)) * 4
+                        data[offset] = 0
+                        data[offset + 1] = 0
+                        data[offset + 2] = 0
+                        data[offset + 3] = 255
+                    }
+                }
+            }
+        }
+        return rep
+    }
+
     private func setupStatusMenu() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = "BatterySOS"
+        item.isVisible = true
         if let button = item.button {
-            button.title = ""
-            button.image = makeStatusBarIcon()
-            button.imagePosition = .imageOnly
-            button.toolTip = "Battery SOS"
+            let image = makeStatusBarIcon()
+            if image.size.width > 0 && image.size.height > 0 {
+                image.isTemplate = true
+                button.image = image
+                button.image?.isTemplate = true
+                button.imagePosition = .imageOnly
+                button.title = ""
+            } else {
+                button.image = nil
+                button.imagePosition = .noImage
+                button.title = "SOS"
+            }
+            button.imageScaling = .scaleProportionallyDown
+            button.toolTip = "Battery SOS. Menu bar, top right."
+            button.setAccessibilityLabel("Battery SOS")
         }
 
         let menu = NSMenu()
@@ -2821,6 +2942,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let muteSoundItem = NSMenuItem(title: "Mute Sound Effects", action: #selector(toggleSoundEffectsMute), keyEquivalent: "")
         muteSoundItem.target = self
         settingsMenu.addItem(muteSoundItem)
+        let calmItem = NSMenuItem(title: "Calm Alerts", action: #selector(toggleCalmAlerts), keyEquivalent: "")
+        calmItem.target = self
+        settingsMenu.addItem(calmItem)
+        let volumeMenuItem = NSMenuItem(title: "Theme Volume", action: nil, keyEquivalent: "")
+        let volumeMenu = NSMenu(title: "Theme Volume")
+        for (modeIndex, mode) in OverlayMode.allCases.enumerated() {
+            let modeItem = NSMenuItem(title: mode.rawValue, action: nil, keyEquivalent: "")
+            let modeMenu = NSMenu(title: mode.rawValue)
+            for (stepIndex, step) in ThemeVolumeSettings.steps.enumerated() {
+                let stepItem = NSMenuItem(title: step.title, action: #selector(selectThemeVolume(_:)), keyEquivalent: "")
+                stepItem.target = self
+                stepItem.tag = modeIndex * 10 + stepIndex
+                themeVolumeItems["\(mode.rawValue)|\(stepIndex)"] = stepItem
+                modeMenu.addItem(stepItem)
+            }
+            volumeMenu.addItem(modeItem)
+            volumeMenu.setSubmenu(modeMenu, for: modeItem)
+        }
+        settingsMenu.addItem(volumeMenuItem)
+        settingsMenu.setSubmenu(volumeMenu, for: volumeMenuItem)
+        let basicsItem = NSMenuItem(title: "How Warnings Work…", action: #selector(showWarningBasics), keyEquivalent: "")
+        basicsItem.target = self
+        settingsMenu.addItem(basicsItem)
         settingsMenu.addItem(NSMenuItem.separator())
         let warningPercentMenuItem = NSMenuItem(title: "Warning Percentage", action: nil, keyEquivalent: "")
         let warningPercentMenu = NSMenu(title: "Warning Percentage")
@@ -2843,10 +2987,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enterLicense.target = self
         let clearLicense = NSMenuItem(title: "Clear License Key", action: #selector(clearLicenseKey), keyEquivalent: "")
         clearLicense.target = self
+        let deactivateMac = NSMenuItem(title: "Deactivate This Mac…", action: #selector(deactivateThisMac), keyEquivalent: "")
+        deactivateMac.target = self
+        let recoverLicense = NSMenuItem(title: "Email Me My License Key…", action: #selector(openLicenseRecovery), keyEquivalent: "")
+        recoverLicense.target = self
         settingsMenu.addItem(unlockPro)
         settingsMenu.addItem(licenseStatusMenuItem)
         settingsMenu.addItem(enterLicense)
         settingsMenu.addItem(clearLicense)
+        settingsMenu.addItem(deactivateMac)
+        settingsMenu.addItem(recoverLicense)
 
         menu.addItem(settingsMenuItem)
         menu.setSubmenu(settingsMenu, for: settingsMenuItem)
@@ -2863,12 +3013,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.matrixModeItem = matrixModeItem
         startAtLoginItem = loginItem
         muteSoundEffectsItem = muteSoundItem
+        calmAlertsItem = calmItem
+        deactivateMacItem = deactivateMac
         unlockProItem = unlockPro
         licenseStatusItem = licenseStatusMenuItem
         enterLicenseItem = enterLicense
         clearLicenseItem = clearLicense
         updateThresholdMenuState()
         updateSoundMenuState()
+        updateComfortMenuState()
         updateStartAtLoginMenuState()
         updateMonetizationUI()
         statusItem = item
@@ -2918,6 +3071,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyMode(_ mode: OverlayMode) {
         currentMode = canUseMode(mode) ? mode : .defaultWarning
+        applyOutputGain()
         overlay.setMode(currentMode)
         defaultWarningModeItem?.state = currentMode == .defaultWarning ? .on : .off
         vitalsModeItem?.state = currentMode == .vitalsMonitor ? .on : .off
@@ -2961,6 +3115,103 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateSoundMenuState() {
         muteSoundEffectsItem?.state = soundEffectsMuted ? .on : .off
+    }
+
+    private func loadComfortPreferences() {
+        AlertMotionPolicy.reduced = comfortPreferences.calm
+        overlay.setCalmAlerts(comfortPreferences.calm)
+        applyOutputGain()
+    }
+
+    private func applyOutputGain() {
+        let gain = AlertComfort(calm: comfortPreferences.calm).outputGain(themeVolume: comfortPreferences.volume(for: currentMode))
+        overlay.setOutputGain(gain)
+        AlertMotionPolicy.reduced = comfortPreferences.calm
+    }
+
+    private func updateComfortMenuState() {
+        calmAlertsItem?.state = comfortPreferences.calm ? .on : .off
+        for mode in OverlayMode.allCases {
+            let selected = comfortPreferences.volume(for: mode)
+            for (stepIndex, step) in ThemeVolumeSettings.steps.enumerated() {
+                themeVolumeItems["\(mode.rawValue)|\(stepIndex)"]?.state = abs(selected - step.value) < 0.001 ? .on : .off
+            }
+        }
+    }
+
+    @objc private func toggleCalmAlerts() {
+        comfortPreferences.calm.toggle()
+        loadComfortPreferences()
+        updateComfortMenuState()
+    }
+
+    @objc private func selectThemeVolume(_ sender: NSMenuItem) {
+        let modeIndex = sender.tag / 10
+        let stepIndex = sender.tag % 10
+        let modes = OverlayMode.allCases
+        guard modes.indices.contains(modeIndex), ThemeVolumeSettings.steps.indices.contains(stepIndex) else { return }
+        let mode = modes[modeIndex]
+        comfortPreferences.setVolume(ThemeVolumeSettings.steps[stepIndex].value, for: mode)
+        if mode == currentMode { applyOutputGain() }
+        updateComfortMenuState()
+    }
+
+    @objc private func showWarningBasics() {
+        showWelcome()
+    }
+
+    private func presentOnboardingIfNeeded() {
+        guard FirstRunOnboarding.shouldPresent(defaults: .standard) else { return }
+        showWelcome()
+    }
+
+    private func showWelcome() {
+        WelcomeWindow.show { [weak self] in
+            self?.startManualTest()
+        }
+    }
+
+    @objc private func openLicenseRecovery() {
+        guard let url = URL(string: "/billing/recover", relativeTo: billingBaseURL) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func deactivateThisMac() {
+        guard monetization.isProUnlocked, let key = monetization.storedLicenseKey else { return }
+        let confirm = NSAlert()
+        confirm.alertStyle = .warning
+        confirm.messageText = "Deactivate this Mac?"
+        confirm.informativeText = "This license can move to a different Mac 3 times in a year. Activating this same Mac again does not use a transfer. Enter the same key on the new Mac."
+        confirm.addButton(withTitle: "Deactivate")
+        confirm.addButton(withTitle: "Cancel")
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
+        guard let url = URL(string: "/api/billing/deactivate", relativeTo: billingBaseURL) else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload = LicenseRequest.deactivateBody(
+            licenseKey: key,
+            machineName: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
+            deviceId: hardwareDeviceId()
+        )
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        request.timeoutInterval = 15
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            let result = BillingClientResponse.deactivation(data: data, statusCode: (response as? HTTPURLResponse)?.statusCode, error: error)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if result.deactivated {
+                    self.monetization.clearLicense()
+                    self.applyMode(self.themePreferences.selectedMode(hasProAccess: false))
+                    self.updateMonetizationUI()
+                }
+                let alert = NSAlert()
+                alert.alertStyle = result.deactivated ? .informational : .warning
+                alert.messageText = result.deactivated ? "This Mac is deactivated" : "Deactivation failed"
+                alert.informativeText = result.message ?? "Unable to deactivate this Mac."
+                alert.runModal()
+            }
+        }.resume()
     }
 
     private var supportsStartAtLogin: Bool {
@@ -3027,6 +3278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         licenseStatusItem?.title = "License: \(monetization.statusSummary)"
         enterLicenseItem?.title = monetization.isProUnlocked ? "Change License Key..." : "Enter License Key..."
         clearLicenseItem?.isEnabled = monetization.isProUnlocked
+        deactivateMacItem?.isEnabled = monetization.isProUnlocked
         unlockProItem?.isEnabled = !monetization.isProUnlocked
 
         if !canUseMode(currentMode) {
@@ -3135,7 +3387,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let minutes = seconds.isFinite && seconds > 0 ? Int(min(seconds / 60, 100_000)) : nil
         let dashboard = BatteryDashboard(state: state, estimatedMinutes: state?.isCharging == false ? minutes : nil)
         let settings = proPreferences.settings
-        return dashboard.summary + "\n\nFull-screen SOS: \(thresholdPercent)%\nEarly heads-up: \(settings.headsUpPercent == 0 ? "Off" : "\(settings.headsUpPercent)%")\nCharge reminder: \(settings.chargeTargetPercent == 0 ? "Off" : "\(settings.chargeTargetPercent)%")\nSound: \(soundEffectsMuted ? "Muted" : settings.quiet(at: Date()) ? "Quiet hours" : "On")\n\nCharge reminders do not control charging. Estimates come from macOS and may change."
+        let volume = Int((comfortPreferences.volume(for: currentMode) * 100).rounded())
+        let presentation = comfortPreferences.calm ? "Calm" : "Standard"
+        return dashboard.summary + "\n\nFull-screen SOS: \(thresholdPercent)%\nEarly heads-up: \(settings.headsUpPercent == 0 ? "Off" : "\(settings.headsUpPercent)%")\nCharge reminder: \(settings.chargeTargetPercent == 0 ? "Off" : "\(settings.chargeTargetPercent)%")\nSound: \(soundEffectsMuted ? "Muted" : settings.quiet(at: Date()) ? "Quiet hours" : "On") · \(presentation) · \(volume)%\n\nCharge reminders do not control charging. Estimates come from macOS and may change."
     }
     @objc private func showBatteryDashboard() {
         guard requirePro() else { return }

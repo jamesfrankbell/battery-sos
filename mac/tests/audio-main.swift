@@ -6,8 +6,10 @@ func expect(_ value: @autoclosure () -> Bool, _ message: String, line: UInt = #l
 final class RecordingAudioOutput: AlertAudioOutput {
     var plays: [(AlertAudioCue, Bool)] = []
     var stops = 0
+    var gain: Float = 1
     func play(_ cue: AlertAudioCue, looping: Bool) { plays.append((cue, looping)) }
     func stop() { stops += 1 }
+    func setOutputGain(_ gain: Float) { self.gain = gain }
 }
 
 @main enum AudioTests {
@@ -43,6 +45,10 @@ final class RecordingAudioOutput: AlertAudioOutput {
         playback.setMuted(true); playback.setMuted(false)
         expect(output.plays.last?.0 == .matrix && output.plays.count == count + 1, "stop clears pending loop")
         expect(output.stops >= 3, "mute/dismiss stop output")
+        playback.setGain(0.4)
+        expect(abs(output.gain - 0.4) < 0.0001, "theme or calm gain reaches the output")
+        playback.setGain(.nan)
+        expect(output.gain == 1, "invalid gain falls back to full")
         print("PASS mute, unmute, one-shot and stop state transitions")
 
         var countdown = SelfDestructCountdownAudio(), events: [AlertAudioCue] = []
