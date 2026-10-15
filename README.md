@@ -16,7 +16,7 @@ Use Apple's Command Line Tools, Node 18+ and the vendored Sparkle 2.9.0 framewor
 
 ```bash
 VERSION=1.0.1 BUILD_NUMBER=YYYYMMDDHHMM DIST_DIR=/tmp/battery-sos-YYYYMMDDHHMM mac/scripts/build-app.sh
-node --test server/billing.test.js mac/scripts/prepare-update.test.js mac/scripts/app-icon.test.js
+node --test server/billing.test.js mac/scripts/prepare-update.test.js mac/scripts/app-icon.test.js mac/scripts/menu-bar-icon.test.js
 xcrun swiftc mac/BatteryAlertState.swift mac/tests/main.swift -o /tmp/battery-sos-state-tests
 /tmp/battery-sos-state-tests
 xcrun swiftc -parse-as-library mac/AppPreferences.swift mac/tests/settings-main.swift -o /tmp/battery-sos-settings-tests

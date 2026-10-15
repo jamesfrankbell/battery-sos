@@ -2783,10 +2783,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStartAtLoginMenuState()
     }
 
+    private enum MenuBarIconArt {
+        // 18×18 template, top to bottom. '#' is opaque black. Drawn again at @2x by doubling pixels.
+        // The exclamation bbox is centered in the battery body. The nub is not part of that body.
+        static let rows = [
+            "..................",
+            "......######......",
+            "......######......",
+            ".....########.....",
+            "....#........#....",
+            "...#..........#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#..........#...",
+            "...#....##....#...",
+            "...#....##....#...",
+            "...#..........#...",
+            "....#........#....",
+            ".....########.....",
+            "..................",
+        ]
+    }
+
     private func makeStatusBarIcon() -> NSImage {
-        let custom = customStatusBarIcon()
-        if custom.size.width > 0 && custom.size.height > 0 {
-            custom.isTemplate = true
+        if let custom = customStatusBarIcon() {
             return custom
         }
         let names = ["battery.25percent", "battery.25", "battery.100percent", "battery.100"]
@@ -2798,24 +2821,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return configured
             }
         }
-        return custom
+        return NSImage(size: .zero)
     }
 
-    private func customStatusBarIcon() -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size, flipped: false) { _ in
-            NSColor.black.setStroke()
-            NSColor.black.setFill()
-            let body = NSBezierPath(roundedRect: NSRect(x: 3.5, y: 2.2, width: 11, height: 12.2), xRadius: 2, yRadius: 2)
-            body.lineWidth = 1.6
-            body.stroke()
-            NSBezierPath(roundedRect: NSRect(x: 6.4, y: 14.2, width: 5.2, height: 2.2), xRadius: 0.7, yRadius: 0.7).fill()
-            NSBezierPath(roundedRect: NSRect(x: 8.1, y: 6.2, width: 1.8, height: 5.2), xRadius: 0.9, yRadius: 0.9).fill()
-            NSBezierPath(ovalIn: NSRect(x: 8.1, y: 3.4, width: 1.8, height: 1.8)).fill()
-            return true
-        }
+    private func customStatusBarIcon() -> NSImage? {
+        guard let one = menuBarIconRepresentation(scale: 1),
+              let two = menuBarIconRepresentation(scale: 2) else { return nil }
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        image.addRepresentation(one)
+        image.addRepresentation(two)
         image.isTemplate = true
         return image
+    }
+
+    private func menuBarIconRepresentation(scale: Int) -> NSBitmapImageRep? {
+        let rows = MenuBarIconArt.rows
+        let side = 18 * scale
+        guard side > 0,
+              let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: side,
+                pixelsHigh: side,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .calibratedRGB,
+                bytesPerRow: side * 4,
+                bitsPerPixel: 32
+              ),
+              let data = rep.bitmapData else { return nil }
+        rep.size = NSSize(width: 18, height: 18)
+        for index in 0..<(side * side * 4) {
+            data[index] = 0
+        }
+        for (y, row) in rows.enumerated() {
+            for (x, pixel) in row.enumerated() where pixel == "#" {
+                for dy in 0..<scale {
+                    for dx in 0..<scale {
+                        let offset = ((y * scale + dy) * side + (x * scale + dx)) * 4
+                        data[offset] = 0
+                        data[offset + 1] = 0
+                        data[offset + 2] = 0
+                        data[offset + 3] = 255
+                    }
+                }
+            }
+        }
+        return rep
     }
 
     private func setupStatusMenu() {
