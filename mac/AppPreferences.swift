@@ -216,13 +216,22 @@ final class AlertComfortPreferences {
     }
 }
 
+struct WelcomeCard: Equatable {
+    let badge: String
+    let headline: String
+    let line: String
+}
+
 enum FirstRunOnboarding {
     static let storageKey = "BatterySOS.onboardingCompleted.v1"
-    static let title = "How Battery SOS warnings work"
-    static let emergencyVersusHeadsUp = "The emergency threshold is the full-screen SOS. It defaults to 1% and can be set from 1% to 10%. Pro early heads-up is a separate earlier notice at 15%, 20%, 30%, or 40%. It does not replace the emergency threshold."
-    static let snoozeOverride = "Snooze can pause the full-screen SOS for 5, 10, or 15 minutes while the battery is above 1%. At 1%, that pause is overridden and the emergency warning shows until you connect power or dismiss it."
-    static let chargeReminders = "Charge reminders are reminders only. They do not start, stop, or limit charging."
-    static var body: String { [emergencyVersusHeadsUp, snoozeOverride, chargeReminders].joined(separator: "\n\n") }
+    static let title = "Battery SOS"
+    static let menuBarNote = "The battery icon sits at the right end of the menu bar. Open Battery SOS again if the notch hides it."
+    static let cards: [WelcomeCard] = [
+        WelcomeCard(badge: "1%", headline: "Big alert at your %", line: "Full-screen SOS fires at the level you choose. It starts at 1%."),
+        WelcomeCard(badge: "15–40", headline: "Pro heads-up sooner", line: "An earlier notice from 15% to 40%, before the full-screen alert."),
+        WelcomeCard(badge: "1%", headline: "1% breaks snooze", line: "Snooze pauses the alert, but 1% always breaks through. Charge reminders only remind you."),
+    ]
+    static var body: String { ([menuBarNote] + cards.map { "\($0.headline). \($0.line)" }).joined(separator: "\n\n") }
     static func shouldPresent(defaults: UserDefaults) -> Bool { defaults.bool(forKey: storageKey) == false }
     static func markComplete(defaults: UserDefaults) { defaults.set(true, forKey: storageKey) }
 }

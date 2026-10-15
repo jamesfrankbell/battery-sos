@@ -2578,6 +2578,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         presentOnboardingIfNeeded()
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showWelcome()
+        statusItem?.button?.performClick(nil)
+        return false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         batteryTimer?.invalidate()
         unregisterPowerStateObservers()
@@ -2778,42 +2784,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeStatusBarIcon() -> NSImage {
+        let custom = customStatusBarIcon()
+        if custom.size.width > 0 && custom.size.height > 0 {
+            custom.isTemplate = true
+            return custom
+        }
+        let names = ["battery.25percent", "battery.25", "battery.100percent", "battery.100"]
+        for name in names {
+            if let symbol = NSImage(systemSymbolName: name, accessibilityDescription: "Battery SOS") {
+                let configured = symbol.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 16, weight: .bold)) ?? symbol
+                configured.isTemplate = true
+                configured.size = NSSize(width: 18, height: 18)
+                return configured
+            }
+        }
+        return custom
+    }
+
+    private func customStatusBarIcon() -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
-            let bodyRect = NSRect(x: 4.0, y: 2.0, width: 10.0, height: 12.5)
-            let tipRect = NSRect(x: 7.2, y: 14.7, width: 3.6, height: 1.8)
-            let bodyPath = NSBezierPath(roundedRect: bodyRect, xRadius: 2.0, yRadius: 2.0)
-            let tipPath = NSBezierPath(roundedRect: tipRect, xRadius: 0.9, yRadius: 0.9)
-
-            NSColor.white.setFill()
-            bodyPath.fill()
-            tipPath.fill()
-
-            NSColor.white.withAlphaComponent(0.95).setStroke()
-            bodyPath.lineWidth = 1.1
-            bodyPath.stroke()
-
-            let warning = NSAttributedString(
-                string: "!",
-                attributes: [
-                    .font: NSFont.systemFont(ofSize: 12.0, weight: .black),
-                    .foregroundColor: NSColor.black.withAlphaComponent(0.9)
-                ]
-            )
-            warning.draw(at: NSPoint(x: 6.85, y: 2.45))
+            NSColor.black.setStroke()
+            NSColor.black.setFill()
+            let body = NSBezierPath(roundedRect: NSRect(x: 3.5, y: 2.2, width: 11, height: 12.2), xRadius: 2, yRadius: 2)
+            body.lineWidth = 1.6
+            body.stroke()
+            NSBezierPath(roundedRect: NSRect(x: 6.4, y: 14.2, width: 5.2, height: 2.2), xRadius: 0.7, yRadius: 0.7).fill()
+            NSBezierPath(roundedRect: NSRect(x: 8.1, y: 6.2, width: 1.8, height: 5.2), xRadius: 0.9, yRadius: 0.9).fill()
+            NSBezierPath(ovalIn: NSRect(x: 8.1, y: 3.4, width: 1.8, height: 1.8)).fill()
             return true
         }
-        image.isTemplate = false
+        image.isTemplate = true
         return image
     }
 
     private func setupStatusMenu() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = "BatterySOS"
+        item.isVisible = true
         if let button = item.button {
-            button.title = ""
-            button.image = makeStatusBarIcon()
-            button.imagePosition = .imageOnly
-            button.toolTip = "Battery SOS"
+            let image = makeStatusBarIcon()
+            if image.size.width > 0 && image.size.height > 0 {
+                image.isTemplate = true
+                button.image = image
+                button.image?.isTemplate = true
+                button.imagePosition = .imageOnly
+                button.title = ""
+            } else {
+                button.image = nil
+                button.imagePosition = .noImage
+                button.title = "SOS"
+            }
+            button.imageScaling = .scaleProportionallyDown
+            button.toolTip = "Battery SOS. Menu bar, top right."
+            button.setAccessibilityLabel("Battery SOS")
         }
 
         let menu = NSMenu()
@@ -3080,18 +3104,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showWarningBasics() {
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = FirstRunOnboarding.title
-        alert.informativeText = FirstRunOnboarding.body
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        showWelcome()
     }
 
     private func presentOnboardingIfNeeded() {
         guard FirstRunOnboarding.shouldPresent(defaults: .standard) else { return }
-        showWarningBasics()
-        FirstRunOnboarding.markComplete(defaults: .standard)
+        showWelcome()
+    }
+
+    private func showWelcome() {
+        WelcomeWindow.show { [weak self] in
+            self?.startManualTest()
+        }
     }
 
     @objc private func openLicenseRecovery() {

@@ -192,8 +192,8 @@ Use the exact stapled DMG customers will download. A local ad-hoc build does not
 ### Install
 
 1. On a Mac that does not already have Battery SOS, open the DMG and drag Battery SOS to Applications.
-2. Launch it. Confirm the menu-bar icon, that Gatekeeper does not warn, and that the first-run alert explains the emergency threshold versus Pro early heads-up, snooze's 1% override, and that charge reminders are reminders only.
-3. Quit and launch again. The alert does not return. Settings → How Warnings Work… still shows it.
+2. Launch it. Confirm Gatekeeper does not warn, the Dock and Finder show the red battery icon, and the menu bar shows a battery-with-exclamation template at the right end. The welcome window has three short cards: the full-screen alert at the chosen percent (default 1%), the Pro heads-up from 15% to 40%, and snooze with 1% breaking through while charge reminders only remind. It also says where the menu-bar icon lives. Try Test SOS starts a preview. Got it closes the window.
+3. Quit and launch again. The welcome window does not return. Launch it once more while it is already running: the welcome window and the menu open. Settings → How Warnings Work… still shows the window. Switch between light and dark appearance and confirm the cards stay readable.
 4. Set the warning percentage to something other than 1%, turn Calm Alerts on, and set one theme volume below 100%. Quit and relaunch. Those settings are still there.
 5. Test SOS. With Calm on, the full-screen warning stays steady and the sound is quieter than the same theme at 100% with Calm off. Escape or the close button ends the preview. Mute stops the sound.
 

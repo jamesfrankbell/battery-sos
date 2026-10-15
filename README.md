@@ -16,7 +16,7 @@ Use Apple's Command Line Tools, Node 18+ and the vendored Sparkle 2.9.0 framewor
 
 ```bash
 VERSION=1.0.1 BUILD_NUMBER=YYYYMMDDHHMM DIST_DIR=/tmp/battery-sos-YYYYMMDDHHMM mac/scripts/build-app.sh
-node --test server/billing.test.js mac/scripts/prepare-update.test.js
+node --test server/billing.test.js mac/scripts/prepare-update.test.js mac/scripts/app-icon.test.js
 xcrun swiftc mac/BatteryAlertState.swift mac/tests/main.swift -o /tmp/battery-sos-state-tests
 /tmp/battery-sos-state-tests
 xcrun swiftc -parse-as-library mac/AppPreferences.swift mac/tests/settings-main.swift -o /tmp/battery-sos-settings-tests
@@ -43,6 +43,8 @@ separate exact-build testing.
 ## Components
 
 - `mac/BatteryEmergencyOverlay.swift`: AppKit menus, overlays, audio and billing UI.
+- `mac/WelcomeWindow.swift`: first-run and reopen welcome cards.
+- `mac/AppIcon.icns`: bundle icon, installed as `CFBundleIconFile`.
 - `mac/BatteryAlertState.swift`: hardware-independent alert decisions.
 - `mac/AppPreferences.swift`: theme persistence, access labels and billing response handling.
 - `mac/scripts/`: local bundle/DMG packaging and guarded release-metadata preparation.

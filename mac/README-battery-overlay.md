@@ -17,7 +17,7 @@ Build both Swift source files through the supported bundle script:
 VERSION=1.0.1 BUILD_NUMBER=YYYYMMDDHHMM DIST_DIR=/tmp/battery-sos-YYYYMMDDHHMM mac/scripts/build-app.sh
 ```
 
-The default warning remains 1%. Calm Alerts holds the full-screen pulse steady, skips decorative flashing, and plays the selected theme at 40% of its volume. Theme Volume is stored per mode from Off through 100% and defaults to 100%. Mute still wins. The first launch explains the emergency threshold, Pro early heads-up, snooze's 1% override, and that charge reminders are reminders only. Settings → How Warnings Work… shows that text again.
+The default warning remains 1%. Calm Alerts holds the full-screen pulse steady, skips decorative flashing, and plays the selected theme at 40% of its volume. Theme Volume is stored per mode from Off through 100% and defaults to 100%. Mute still wins. The first launch opens a short welcome window: the full-screen alert at the chosen percent (default 1%), the Pro heads-up from 15% to 40%, and snooze with 1% breaking through while charge reminders only remind. It also says the menu-bar icon is at the right end of the menu bar. Got it dismisses it. Try Test SOS starts a preview. Settings → How Warnings Work… shows the window again. Launching the app while it is already running opens that window and the menu, because the app has no Dock icon. The status item is a template battery with an exclamation mark, or the title SOS if that image is unavailable. `AppIcon.icns` is copied into the bundle and named by `CFBundleIconFile`.
 
 `Test SOS` works without a battery, showing unknown battery percentage
 rather than inventing a value. Closing a preview ends it. A low-battery warning
@@ -128,7 +128,7 @@ export BATTERY_SOS_BILLING_URL="https://yourdomain.com"
 
 ## Notes
 
-- A `Battery SOS` menu bar item is added so you can quit the tool.
+- A template `Battery SOS` menu bar item is added at the right end of the menu bar so you can quit the tool. Launch the app again if the notch hides it.
 - The menu also includes `Test SOS` so you can trigger the flashing overlay on demand.
 - The menu includes `Settings -> Warning Percentage` where you can choose `1%` through `10%`.
 - The menu includes `Settings -> Mute Sound Effects` with a checkmark toggle.

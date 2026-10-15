@@ -110,10 +110,13 @@ func data(_ text: String) -> Data { Data(text.utf8) }
         print("PASS calm presentation and per-theme volume")
 
         expect(FirstRunOnboarding.shouldPresent(defaults: defaults), "first launch shows onboarding")
-        let guide = FirstRunOnboarding.body
-        expect(guide.contains(FirstRunOnboarding.emergencyVersusHeadsUp) && guide.contains("emergency threshold") && guide.contains("early heads-up"), "threshold versus Pro heads-up")
-        expect(guide.contains("1%") && guide.lowercased().contains("overridden"), "snooze 1% override")
-        expect(guide.contains("reminders only") && guide.contains("do not start, stop, or limit charging"), "charge reminders are reminders only")
+        expect(FirstRunOnboarding.cards.count == 3, "three short welcome cards")
+        expect(FirstRunOnboarding.cards.allSatisfy { !$0.headline.isEmpty && $0.line.count < 140 }, "each card is a headline and one short line")
+        expect(FirstRunOnboarding.cards[0].line.contains("1%") && FirstRunOnboarding.cards[0].headline.contains("%"), "big alert defaults to 1%")
+        expect(FirstRunOnboarding.cards[1].line.contains("15%") && FirstRunOnboarding.cards[1].line.contains("40%"), "Pro heads-up is 15 to 40")
+        expect(FirstRunOnboarding.cards[2].line.contains("1%") && FirstRunOnboarding.cards[2].line.contains("breaks through"), "1% breaks snooze")
+        expect(FirstRunOnboarding.cards[2].line.contains("only remind you"), "charge reminders are reminders only")
+        expect(FirstRunOnboarding.menuBarNote.contains("menu bar") && FirstRunOnboarding.menuBarNote.contains("notch"), "welcome says where the menu bar icon lives")
         FirstRunOnboarding.markComplete(defaults: defaults)
         expect(!FirstRunOnboarding.shouldPresent(defaults: UserDefaults(suiteName: suite)!), "onboarding is shown once")
         print("PASS first-run onboarding")
