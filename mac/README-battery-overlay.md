@@ -135,7 +135,7 @@ export BATTERY_SOS_BILLING_URL="https://yourdomain.com"
 - Monetization behavior:
   - `Default Warning` is free.
   - All other modes are Pro.
-  - `Settings -> Unlock Pro ($1)...` opens Stripe checkout.
+  - `Settings -> Unlock Pro ($2.99)...` opens Stripe checkout for the one-time Pro license.
   - `Settings -> Enter License Key...` activates Pro after purchase.
 - The `Mode` submenu includes: `Default Warning`, `Vitals Monitor`, `Self-Destruct`, `Reactor Meltdown`, `Starship Life Support`, and `Matrix`.
 - Every mode has sound effects.

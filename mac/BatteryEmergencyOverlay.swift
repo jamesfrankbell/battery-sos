@@ -2835,7 +2835,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsMenu.setSubmenu(warningPercentMenu, for: warningPercentMenuItem)
 
         settingsMenu.addItem(NSMenuItem.separator())
-        let unlockPro = NSMenuItem(title: "Unlock Pro ($1)...", action: #selector(startProCheckout), keyEquivalent: "")
+        let unlockPro = NSMenuItem(title: "Unlock Pro ($2.99)...", action: #selector(startProCheckout), keyEquivalent: "")
         unlockPro.target = self
         let licenseStatusMenuItem = NSMenuItem(title: "License: --", action: nil, keyEquivalent: "")
         licenseStatusMenuItem.isEnabled = false
@@ -3018,7 +3018,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "\(mode.rawValue) is a Pro mode"
-        alert.informativeText = "Use Settings -> Unlock Pro ($1)..., then enter your license key."
+        alert.informativeText = "Use Settings -> Unlock Pro ($2.99)..., then enter your license key. Pro is a one-time purchase."
         alert.runModal()
     }
 

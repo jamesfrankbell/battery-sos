@@ -414,7 +414,7 @@ function renderCancelPage() {
 <body>
   <div class="card">
     <h1>Checkout Cancelled</h1>
-    <p>No charge was made. You can reopen Battery SOS and choose Settings -> Unlock Pro ($1)... whenever you're ready.</p>
+    <p>No charge was made. Pro is $2.99, one time. You can reopen Battery SOS and choose Settings -> Unlock Pro ($2.99)... whenever you're ready.</p>
   </div>
 </body>
 </html>`;

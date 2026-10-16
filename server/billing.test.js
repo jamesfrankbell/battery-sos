@@ -41,12 +41,22 @@ test.after(() => {
 test('mock checkout, unpaid/delayed payment, activation, invalid key and restart persistence', async () => {
   let billing = load('journey');
   let session = { ...paid(), payment_status: 'unpaid' };
+  let checkoutBody = '';
   global.fetch = async (url, options) => {
     assert.ok(url.startsWith('https://api.stripe.com/v1/checkout/sessions'));
-    if (options.method === 'POST') return { ok: true, json: async () => ({ id: session.id, url: 'https://checkout.example.invalid/session' }) };
+    if (options.method === 'POST') {
+      checkoutBody = String(options.body || '');
+      return { ok: true, json: async () => ({ id: session.id, url: 'https://checkout.example.invalid/session' }) };
+    }
     return { ok: true, json: async () => session };
   };
   assert.match((await billing.createCheckoutSession('Fixture Mac')).url, /checkout.example.invalid/);
+  assert.match(checkoutBody, /line_items%5B0%5D%5Bprice%5D=price_isolated_fixture/);
+  assert.doesNotMatch(checkoutBody, /unit_amount/);
+  const cancelPage = billing.renderCancelPage();
+  assert.match(cancelPage, /\$2\.99, one time/);
+  assert.match(cancelPage, /Unlock Pro \(\$2\.99\)/);
+  assert.doesNotMatch(cancelPage, /Unlock Pro \(\$1\)/);
   assert.equal((await billing.finalizeCheckoutSession(session.id)).ready, false);
   assert.equal(billing.getLicenseBySessionId(session.id), null);
   deliver(billing, session);
@@ -65,6 +75,7 @@ test('mock checkout, unpaid/delayed payment, activation, invalid key and restart
   assert.equal(billing.getBillingAdminSummary().totals.licenses, 1);
   assert.equal(billing.getLicenseBySessionId(session.id).key, result.key);
   assert.match(billing.renderCancelPage(), /Checkout Cancelled/);
+  assert.match(billing.renderCancelPage(), /\$2\.99, one time/);
 });
 
 test('stale, future, malformed and forged signatures cannot issue licenses', () => {
@@ -152,6 +163,23 @@ test('success-page waiting is bounded when payment stays pending', async () => {
   await new Promise(resolve=>setImmediate(resolve));
   while(timers.length) {timers.shift()();await new Promise(resolve=>setImmediate(resolve));}
   assert.equal(requests,30);assert.equal(elements['key-slot'].innerHTML,'');
+});
+
+test('homepage states the one-time Pro price in visible copy and JSON-LD', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'website', 'index.html'), 'utf8');
+  assert.match(html, /\$2\.99/);
+  assert.match(html, /one time for Pro/);
+  assert.match(html, /Pro is \$2\.99, one time/);
+  assert.match(html, /2\.99 USD/);
+  const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((match) => JSON.parse(match[1]));
+  const app = blocks.find((block) => block['@type'] === 'SoftwareApplication');
+  assert.equal(app.offers['@type'], 'Offer');
+  assert.equal(app.offers.price, '2.99');
+  assert.equal(app.offers.priceCurrency, 'USD');
+  const faq = blocks.find((block) => block['@type'] === 'FAQPage');
+  assert.match(faq.mainEntity[0].acceptedAnswer.text, /\$2\.99 \(2\.99 USD\), one time/);
+  assert.doesNotMatch(html, /\$1(?![\d.])/);
+  assert.doesNotMatch(html, /"price": "1\.00"/);
 });
 
 test('activation persists across an actual fresh Node process', () => {

@@ -61,6 +61,8 @@ a newer DMG. Do not reuse hashes, signatures or notarization results from anothe
 - Agree on hardware/OS coverage or explicitly waive uncovered targets with consequences.
 - Handle account/legal/certificate decisions and release authorization separately.
 
-Retain the existing 1% default, comfort settings, price and licensing/transfer
+James approved the Pro price change to $2.99, one time, on October 16, 2026.
+The charge still comes from `STRIPE_PRICE_ID`, which must be the $2.99 one-time
+Price. Retain the existing 1% default, comfort settings, and licensing/transfer
 policy unless James explicitly changes them. A blocked or unrun required check
 does not count as a pass.

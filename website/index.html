@@ -6,9 +6,42 @@
     <title>Battery SOS for Mac — V2</title>
     <meta
       name="description"
-      content="Battery SOS is the tiny Mac app that warns you before your laptop dies, so your work doesn’t go with it."
+      content="Battery SOS is the tiny Mac app that warns you before your laptop dies. Default Warning is free. Pro is $2.99, one time."
     />
     <link rel="stylesheet" href="./styles.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Battery SOS",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "macOS",
+        "description": "Menu-bar app that shows a full-screen low-battery warning. Default Warning is free. Pro is a one-time license.",
+        "offers": {
+          "@type": "Offer",
+          "name": "Battery SOS Pro",
+          "price": "2.99",
+          "priceCurrency": "USD",
+          "description": "One-time Pro license. Default Warning is included with the free download."
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How much does Battery SOS Pro cost?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pro is $2.99 (2.99 USD), one time. It is not a subscription. Default Warning stays free."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div class="ambient ambient-1"></div>
@@ -32,6 +65,11 @@
               ascends into the heavens.
             </p>
 
+            <p class="price-banner">
+              <span class="price-amount">$2.99</span>
+              <span>one time for Pro. Default Warning stays free.</span>
+            </p>
+
             <div class="cta-row">
               <a class="button primary" href="/downloads/battery-sos-macos.dmg">Download for Mac</a>
               <a class="button ghost" href="#why">Why this exists</a>
@@ -40,7 +78,7 @@
             <ul class="trust-row">
               <li>Apple signed + notarized</li>
               <li>Set your own warning level</li>
-              <li>Built for people who like finishing their work</li>
+              <li>Pro is $2.99, one time</li>
             </ul>
           </div>
 
@@ -234,6 +272,10 @@
           <article>
             <h3>Can I verify the file?</h3>
             <p>Also yes. SHA256 checksum is included for the delightfully paranoid.</p>
+          </article>
+          <article>
+            <h3>How much is Pro?</h3>
+            <p>Pro is $2.99 (2.99 USD), one time. It is not a subscription. Default Warning stays free. In the app, choose Settings, then Unlock Pro ($2.99)...</p>
           </article>
         </div>
 
