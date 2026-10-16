@@ -2,7 +2,7 @@
 
 Battery SOS is a macOS menu-bar app that displays a full-screen warning when a
 MacBook battery reaches the selected percentage. Default Warning is free; the
-five additional themes require the existing $1 Pro license. The warning can be
+five additional themes require the $2.99 one-time Pro license. The warning can be
 dismissed with Escape or its close button and ends when AC power is connected.
 
 The default warning threshold remains 1%, configurable from 1% to 10%. Settings

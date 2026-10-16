@@ -17,9 +17,12 @@ time. Both completed checkout and delayed-payment success events can issue a
 license, only for paid sessions. Session-based issuance remains idempotent.
 Success pages poll for up to one minute, then instruct the customer to refresh.
 
-The existing one-Mac activation rule and pricing are preserved. Empty machine
-names can no longer bypass binding. Binding still uses the customer's Mac name;
-renaming or duplicate names remain limitations of the established design.
+The existing one-Mac activation rule is preserved. Pro is $2.99, one time.
+Checkout does not hardcode that amount: `createCheckoutSession` sends
+`STRIPE_PRICE_ID` as the Stripe Price and does not set `unit_amount`. Point
+`STRIPE_PRICE_ID` at the $2.99 one-time Price. Empty machine names can no
+longer bypass binding. Binding still uses the customer's Mac name; renaming
+or duplicate names remain limitations of the established design.
 
 `POST /api/billing/recover` is now support-only and requires the existing
 `BILLING_ADMIN_TOKEN` as an Authorization bearer header. Email alone never
