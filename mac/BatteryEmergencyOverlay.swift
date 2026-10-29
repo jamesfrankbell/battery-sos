@@ -1,8 +1,95 @@
 import Cocoa
 import AVFoundation
+import CryptoKit
+import IOKit
 import IOKit.ps
+import Security
 import ServiceManagement
 import Sparkle
+
+// SHA-256 of IOPlatformUUID. The server signs this hash into the Pro
+// entitlement. Limits: the hash is not a secret; a patched binary can skip
+// verification or replace EntitlementSigner.publicKeyBase64; a process that
+// can spoof the IOKit registry can present another Mac's UUID. Computer name
+// is intentionally not part of this check.
+private enum MachineIdentity {
+    static func currentHash() -> String {
+        guard let uuid = platformUUID(), !uuid.isEmpty else { return "" }
+        let digest = SHA256.hash(data: Data(uuid.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func platformUUID() -> String? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        let property = IORegistryEntryCreateCFProperty(service, "IOPlatformUUID" as CFString, kCFAllocatorDefault, 0)
+        return property?.takeRetainedValue() as? String
+    }
+}
+
+private enum EntitlementSigner {
+    // Matches ENTITLEMENT_SIGNING_PRIVATE_KEY on the billing server.
+    // Rotate both together; do not commit the private key.
+    static let publicKeyBase64 = "gTZwp8xK+B6IlAst6SlVbEWZTpGKneMuCjImIlipJuM="
+
+    static func verify(licenseId: String, machineHash: String, issuedAt: String, signatureBase64: String) -> Bool {
+        guard let keyData = Data(base64Encoded: publicKeyBase64),
+              keyData.count == 32,
+              let publicKey = try? Curve25519.Signing.PublicKey(rawRepresentation: keyData),
+              let signature = Data(base64Encoded: signatureBase64),
+              !licenseId.isEmpty,
+              !machineHash.isEmpty,
+              !issuedAt.isEmpty else {
+            return false
+        }
+        let payload = Data("v1\n\(licenseId)\n\(machineHash)\n\(issuedAt)".utf8)
+        return publicKey.isValidSignature(signature, for: payload)
+    }
+}
+
+private enum EntitlementStore {
+    private static let service = "com.jamesbell.battery-sos.entitlement"
+    private static let account = "pro"
+
+    static func read() -> [String: String]? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess, let data = item as? Data else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: String]
+    }
+
+    @discardableResult
+    static func write(_ entitlement: [String: String]) -> Bool {
+        guard let data = try? JSONSerialization.data(withJSONObject: entitlement) else { return false }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+        var add = query
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    }
+
+    static func clear() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
 
 private struct BatteryState {
     let percent: Int
@@ -21,9 +108,22 @@ private enum OverlayMode: String {
 private final class MonetizationManager {
     private let licenseKeyStorageKey = "BatterySOS.licenseKey"
     private let defaults = UserDefaults.standard
+    private var legacyMigrationPending = false
 
+    // A Keychain entitlement must verify against this Mac. A stored license
+    // string does not unlock Pro. During the one-time online migration, a
+    // well-formed key already on disk stays unlocked only until the server
+    // answers; a network failure retries on the next launch, and a rejection
+    // clears the key. Any other defaults value stays locked.
     var isProUnlocked: Bool {
-        defaults.string(forKey: licenseKeyStorageKey) != nil
+        if hasValidEntitlement() {
+            return true
+        }
+        return legacyMigrationPending && hasWellFormedStoredKey()
+    }
+
+    var needsOnlineMigration: Bool {
+        legacyMigrationPending
     }
 
     var hasProAccess: Bool {
@@ -37,17 +137,58 @@ private final class MonetizationManager {
         return "Free (Default mode only)"
     }
 
-    func clearLicense() {
-        defaults.removeObject(forKey: licenseKeyStorageKey)
+    func beginLegacyMigration() {
+        if hasValidEntitlement() {
+            legacyMigrationPending = false
+            return
+        }
+        legacyMigrationPending = hasWellFormedStoredKey()
     }
 
-    func storeActivatedLicense(_ key: String) {
+    func clearLicense() {
+        defaults.removeObject(forKey: licenseKeyStorageKey)
+        EntitlementStore.clear()
+        legacyMigrationPending = false
+    }
+
+    @discardableResult
+    func storeActivatedLicense(_ key: String, entitlement: [String: String]) -> Bool {
+        guard EntitlementStore.write(entitlement) else { return false }
         let normalized = key.uppercased().replacingOccurrences(of: " ", with: "")
         defaults.set(normalized, forKey: licenseKeyStorageKey)
+        legacyMigrationPending = false
+        return true
     }
 
     var storedLicenseKey: String? {
         defaults.string(forKey: licenseKeyStorageKey)
+    }
+
+    func hasValidEntitlement() -> Bool {
+        guard let stored = EntitlementStore.read(),
+              let licenseId = stored["licenseId"],
+              let machineHash = stored["machineHash"],
+              let issuedAt = stored["issuedAt"],
+              let signature = stored["signature"],
+              !machineHash.isEmpty,
+              machineHash == MachineIdentity.currentHash() else {
+            return false
+        }
+        return EntitlementSigner.verify(
+            licenseId: licenseId,
+            machineHash: machineHash,
+            issuedAt: issuedAt,
+            signatureBase64: signature
+        )
+    }
+
+    func hasWellFormedStoredKey() -> Bool {
+        guard let key = storedLicenseKey else { return false }
+        let parts = key.split(separator: "-")
+        guard parts.count == 6, parts[0] == "BSOS" else { return false }
+        return parts.dropFirst().allSatisfy { part in
+            part.count == 4 && part.allSatisfy(\.isHexDigit)
+        }
     }
 }
 
@@ -2711,6 +2852,12 @@ private final class OverlayManager {
     }
 }
 
+private enum RemoteLicenseResult {
+    case activated(key: String, entitlement: [String: String])
+    case rejected(message: String)
+    case unavailable(message: String)
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let thresholdDefaultsKey = "BatterySOS.warningThresholdPercent"
     private let soundMutedDefaultsKey = "BatterySOS.soundEffectsMuted"
@@ -2763,11 +2910,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         setupStatusMenu()
+        monetization.beginLegacyMigration()
         if !canUseMode(currentMode) {
             currentMode = .defaultWarning
         }
         applyMode(currentMode)
         updateMonetizationUI()
+        migrateLegacyLicenseIfNeeded()
         registerPowerStateObservers()
 
         evaluateBatteryState()
@@ -2874,20 +3023,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        verifyLicenseRemotely(normalizedInputKey) { [weak self] success, message, serverNormalizedKey in
+        verifyLicenseRemotely(normalizedInputKey) { [weak self] result in
             guard let self else { return }
-            if success, let serverNormalizedKey {
-                self.monetization.storeActivatedLicense(serverNormalizedKey)
-                let successAlert = NSAlert()
-                successAlert.messageText = "Battery SOS Pro Activated"
-                successAlert.informativeText = "All modes are now unlocked on this Mac."
-                successAlert.runModal()
-            } else {
-                let failure = NSAlert()
-                failure.alertStyle = .warning
-                failure.messageText = "License Verification Failed"
-                failure.informativeText = message ?? "Unable to verify this key. Please try again."
-                failure.runModal()
+            switch result {
+            case .activated(let serverNormalizedKey, let entitlement):
+                if self.monetization.storeActivatedLicense(serverNormalizedKey, entitlement: entitlement) {
+                    let successAlert = NSAlert()
+                    successAlert.messageText = "Battery SOS Pro Activated"
+                    successAlert.informativeText = "All modes are now unlocked on this Mac."
+                    successAlert.runModal()
+                } else {
+                    self.presentLicenseFailure("The entitlement could not be saved to the Keychain.")
+                }
+            case .rejected(let message), .unavailable(let message):
+                self.presentLicenseFailure(message)
+            }
+            self.updateMonetizationUI()
+        }
+    }
+
+    private func presentLicenseFailure(_ message: String) {
+        let failure = NSAlert()
+        failure.alertStyle = .warning
+        failure.messageText = "License Verification Failed"
+        failure.informativeText = message
+        failure.runModal()
+    }
+
+    private func migrateLegacyLicenseIfNeeded() {
+        guard monetization.needsOnlineMigration, let key = monetization.storedLicenseKey else { return }
+        verifyLicenseRemotely(key) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .activated(let normalized, let entitlement):
+                _ = self.monetization.storeActivatedLicense(normalized, entitlement: entitlement)
+            case .rejected:
+                self.monetization.clearLicense()
+            case .unavailable:
+                break
             }
             self.updateMonetizationUI()
         }
@@ -2931,25 +3104,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }.resume()
     }
 
-    private func verifyLicenseRemotely(_ licenseKey: String, completion: @escaping (Bool, String?, String?) -> Void) {
+    private func verifyLicenseRemotely(_ licenseKey: String, completion: @escaping (RemoteLicenseResult) -> Void) {
         guard let url = URL(string: "/api/billing/verify-license", relativeTo: billingBaseURL) else {
-            completion(false, "Billing endpoint URL is invalid.", nil)
+            completion(.unavailable(message: "Billing endpoint URL is invalid."))
             return
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 15
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         let payload: [String: String] = [
             "licenseKey": licenseKey,
-            "machineName": (Host.current().localizedName ?? ProcessInfo.processInfo.hostName)
+            "machineName": (Host.current().localizedName ?? ProcessInfo.processInfo.hostName),
+            "machineHash": MachineIdentity.currentHash()
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
 
-        URLSession.shared.dataTask(with: request) { data, _, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
-                if let error {
-                    completion(false, "Unable to contact billing server: \(error.localizedDescription)", nil)
+                if error != nil {
+                    completion(.unavailable(message: "Unable to contact billing server."))
+                    return
+                }
+
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                if status >= 500 || status == 429 {
+                    completion(.unavailable(message: "Billing server is unavailable. Your saved license will be checked again on the next launch."))
                     return
                 }
 
@@ -2957,16 +3138,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let data,
                     let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
                 else {
-                    completion(false, "License verification response was invalid.", nil)
+                    completion(.rejected(message: "License verification response was invalid."))
                     return
                 }
 
                 let valid = object["valid"] as? Bool ?? false
-                let message = object["message"] as? String
+                let message = object["message"] as? String ?? "Unable to verify this key. Please try again."
                 let normalizedKey = object["normalizedKey"] as? String
-                completion(valid, message, normalizedKey)
+                guard valid, let normalizedKey else {
+                    completion(.rejected(message: message))
+                    return
+                }
+                guard let entitlement = Self.verifiedEntitlement(from: object) else {
+                    completion(.rejected(message: "The server did not return a verifiable entitlement for this Mac."))
+                    return
+                }
+                completion(.activated(key: normalizedKey, entitlement: entitlement))
             }
         }.resume()
+    }
+
+    private static func verifiedEntitlement(from object: [String: Any]) -> [String: String]? {
+        guard let raw = object["entitlement"] as? [String: Any],
+              let licenseId = raw["licenseId"] as? String,
+              let machineHash = raw["machineHash"] as? String,
+              let issuedAt = raw["issuedAt"] as? String,
+              let signature = raw["signature"] as? String,
+              machineHash == MachineIdentity.currentHash(),
+              EntitlementSigner.verify(
+                licenseId: licenseId,
+                machineHash: machineHash,
+                issuedAt: issuedAt,
+                signatureBase64: signature
+              ) else {
+            return nil
+        }
+        return [
+            "licenseId": licenseId,
+            "machineHash": machineHash,
+            "issuedAt": issuedAt,
+            "signature": signature
+        ]
     }
 
     private func showCheckoutError(_ message: String) {

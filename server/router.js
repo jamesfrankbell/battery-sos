@@ -1,5 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { clientAddress } = require('./client-address');
+const { consumeRateLimit } = require('./rate-limit');
 const {
   createCheckoutSession,
   finalizeCheckoutSession,
@@ -46,6 +48,18 @@ function sendJson(res, statusCode, payload) {
 
 function sendError(res, statusCode, message) {
   sendJson(res, statusCode, { error: message });
+}
+
+function enforceRateLimit(req, res, pathname) {
+  const decision = consumeRateLimit(pathname, clientAddress(req));
+  if (!decision.limited) return false;
+  res.writeHead(429, {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+    'retry-after': String(decision.retryAfterSeconds || 1),
+  });
+  res.end(JSON.stringify({ error: 'Too many requests. Try again later.' }));
+  return true;
 }
 
 function sendHtml(res, html, statusCode = 200) {
@@ -114,6 +128,7 @@ async function handleApi(req, res, pathname) {
   }
 
   if (req.method === 'POST' && pathname === '/api/billing/create-checkout-session') {
+    if (enforceRateLimit(req, res, pathname)) return;
     const payload = await parseBody(req);
     const session = await createCheckoutSession(payload.machineName);
     sendJson(res, 200, session);
@@ -121,23 +136,22 @@ async function handleApi(req, res, pathname) {
   }
 
   if (req.method === 'POST' && pathname === '/api/billing/verify-license') {
+    if (enforceRateLimit(req, res, pathname)) return;
     const payload = await parseBody(req);
-    sendJson(res, 200, verifyLicenseKey(payload.licenseKey, payload.machineName));
+    sendJson(res, 200, verifyLicenseKey(payload.licenseKey, payload.machineName, payload.machineHash));
     return;
   }
 
   if (req.method === 'POST' && pathname === '/api/billing/recover') {
+    if (enforceRateLimit(req, res, pathname)) return;
     const payload = await parseBody(req);
-    sendJson(res, 200, recoverLicenseByEmail(payload.email));
+    sendJson(res, 200, await recoverLicenseByEmail(payload.email));
     return;
   }
 
   if (req.method === 'GET' && pathname === '/api/billing/admin/licenses') {
     const authHeader = String(req.headers.authorization || '');
-    const requestUrl = new URL(req.url || '/', 'http://localhost');
-    const tokenFromHeader = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-    const tokenFromQuery = requestUrl.searchParams.get('token') || '';
-    const token = tokenFromHeader || tokenFromQuery;
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
 
     if (!isValidAdminToken(token)) {
       sendError(res, 401, 'Unauthorized');
@@ -158,7 +172,7 @@ async function handleApi(req, res, pathname) {
   if (req.method === 'POST' && pathname === '/api/billing/webhook') {
     const raw = await parseRawBody(req);
     const signature = req.headers['stripe-signature'] || '';
-    sendJson(res, 200, handleStripeWebhook(raw, signature));
+    sendJson(res, 200, await handleStripeWebhook(raw, signature));
     return;
   }
 

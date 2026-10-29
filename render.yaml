@@ -26,3 +26,13 @@ services:
         sync: false
       - key: BILLING_ADMIN_TOKEN
         sync: false
+      - key: ENTITLEMENT_SIGNING_PRIVATE_KEY
+        sync: false
+      - key: BILLING_EMAIL_PROVIDER
+        sync: false
+      - key: BILLING_EMAIL_HTTP_URL
+        sync: false
+      - key: BILLING_EMAIL_HTTP_TOKEN
+        sync: false
+      - key: BILLING_EMAIL_FROM
+        sync: false
