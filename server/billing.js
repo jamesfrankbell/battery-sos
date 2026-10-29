@@ -606,6 +606,7 @@ function currentEmailSender() {
     fetchImpl: global.fetch,
     httpUrl: process.env.BILLING_EMAIL_HTTP_URL || '',
     httpToken: process.env.BILLING_EMAIL_HTTP_TOKEN || '',
+    from: process.env.BILLING_EMAIL_FROM || '',
     onConsole(message) {
       devEmailOutbox.push(message);
     },

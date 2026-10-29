@@ -5,11 +5,9 @@ const crypto = require('node:crypto');
 // Ed25519 SPKI is a fixed 12-byte header plus the 32-byte raw public key.
 const SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
 
-// Placeholder embedded in the Mac app. The matching private key was not kept.
-// Generate a real pair with scripts/generate-entitlement-keypair.js, put the
-// public key in EntitlementSigner.publicKeyBase64, and set only the private
-// key as ENTITLEMENT_SIGNING_PRIVATE_KEY on the server.
-const EMBEDDED_APP_PUBLIC_KEY_BASE64 = 'dpfow4ImtvwvUzpkHMgowHQOulXtqLQ+rT+syTCAHnY=';
+// Embedded in the Mac app. The matching private key lives only in
+// ENTITLEMENT_SIGNING_PRIVATE_KEY on the server.
+const EMBEDDED_APP_PUBLIC_KEY_BASE64 = 'gTZwp8xK+B6IlAst6SlVbEWZTpGKneMuCjImIlipJuM=';
 
 function normalizePem(value) {
   const text = String(value || '').trim();

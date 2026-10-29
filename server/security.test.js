@@ -22,6 +22,7 @@ process.env.BILLING_ADMIN_TOKEN = 'test-admin-token-value';
 process.env.BILLING_EMAIL_PROVIDER = 'console';
 delete process.env.BILLING_EMAIL_HTTP_URL;
 delete process.env.BILLING_EMAIL_HTTP_TOKEN;
+delete process.env.BILLING_EMAIL_FROM;
 process.env.NODE_ENV = 'test';
 process.env.ENTITLEMENT_SIGNING_PRIVATE_KEY = signingKey.privateKey.export({ type: 'pkcs8', format: 'pem' });
 
@@ -123,6 +124,7 @@ describe('billing security fixes', { concurrency: 1 }, () => {
     process.env.BILLING_EMAIL_PROVIDER = 'console';
     delete process.env.BILLING_EMAIL_HTTP_URL;
     delete process.env.BILLING_EMAIL_HTTP_TOKEN;
+    delete process.env.BILLING_EMAIL_FROM;
   });
 
   test('recovery emails the key and returns the same body either way', async () => {
@@ -223,9 +225,15 @@ describe('billing security fixes', { concurrency: 1 }, () => {
     assert.equal(JSON.stringify(result).includes(storedKey), false);
     assert.equal(delivered.url, 'https://email.example.test/send');
     assert.equal(delivered.options.headers.authorization, 'Bearer email-token');
+    assert.equal(delivered.body.from, 'Battery SOS <support@batterysos.app>');
     assert.match(delivered.body.text, new RegExp(storedKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     assert.equal(delivered.body.html.includes(storedKey), false);
     assert.match(delivered.body.html, /&lt;/);
+
+    process.env.BILLING_EMAIL_FROM = 'Battery SOS <licenses@batterysos.app>';
+    await billing.recoverLicenseByEmail('buyer@example.com');
+    assert.equal(delivered.body.from, 'Battery SOS <licenses@batterysos.app>');
+    assert.equal(delivered.body.to, 'buyer@example.com');
   });
 
   test('verify-license binds a machine hash and returns a signed entitlement', () => {
@@ -505,8 +513,10 @@ describe('billing security fixes', { concurrency: 1 }, () => {
     assert.match(swift, /IOPlatformUUID/);
     assert.match(swift, /migrateLegacyLicenseIfNeeded/);
     assert.match(swift, /v1\\n\\\(licenseId\)\\n\\\(machineHash\)\\n\\\(issuedAt\)/);
+    assert.equal(EMBEDDED_APP_PUBLIC_KEY_BASE64, 'gTZwp8xK+B6IlAst6SlVbEWZTpGKneMuCjImIlipJuM=');
+    assert.equal(Buffer.from(EMBEDDED_APP_PUBLIC_KEY_BASE64, 'base64').length, 32);
     assert.match(swift, new RegExp(EMBEDDED_APP_PUBLIC_KEY_BASE64.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    assert.match(swift, /publicKeyBase64 = "dpfow4ImtvwvUzpkHMgowHQOulXtqLQ\+rT\+syTCAHnY="/);
+    assert.match(swift, /publicKeyBase64 = "gTZwp8xK\+B6IlAst6SlVbEWZTpGKneMuCjImIlipJuM="/);
   });
 
   test('committed app binaries are not in the tree', () => {

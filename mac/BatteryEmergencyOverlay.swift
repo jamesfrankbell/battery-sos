@@ -29,10 +29,9 @@ private enum MachineIdentity {
 }
 
 private enum EntitlementSigner {
-    // Placeholder with no matching private key in the repo. Replace this with
-    // the public key from scripts/generate-entitlement-keypair.js before
-    // shipping a build. The server key is ENTITLEMENT_SIGNING_PRIVATE_KEY.
-    static let publicKeyBase64 = "dpfow4ImtvwvUzpkHMgowHQOulXtqLQ+rT+syTCAHnY="
+    // Matches ENTITLEMENT_SIGNING_PRIVATE_KEY on the billing server.
+    // Rotate both together; do not commit the private key.
+    static let publicKeyBase64 = "gTZwp8xK+B6IlAst6SlVbEWZTpGKneMuCjImIlipJuM="
 
     static func verify(licenseId: String, machineHash: String, issuedAt: String, signatureBase64: String) -> Bool {
         guard let keyData = Data(base64Encoded: publicKeyBase64),

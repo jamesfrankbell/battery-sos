@@ -1,11 +1,15 @@
 'use strict';
 
+const DEFAULT_EMAIL_FROM = 'Battery SOS <support@batterysos.app>';
+
 // BILLING_EMAIL_PROVIDER=console keeps the message in the dev outbox and logs
 // only the recipient and subject. BILLING_EMAIL_PROVIDER=http posts
-// { to, subject, text, html } to BILLING_EMAIL_HTTP_URL.
-function createEmailSender({ provider, fetchImpl, httpUrl, httpToken, onConsole } = {}) {
+// { from, to, subject, text, html } to BILLING_EMAIL_HTTP_URL.
+// Resend accepts this body at https://api.resend.com/emails with a Bearer token.
+function createEmailSender({ provider, fetchImpl, httpUrl, httpToken, from, onConsole } = {}) {
   const name = String(provider || 'console').trim().toLowerCase();
   const fetchFn = fetchImpl || global.fetch;
+  const senderFrom = String(from || process.env.BILLING_EMAIL_FROM || '').trim() || DEFAULT_EMAIL_FROM;
 
   return {
     provider: name,
@@ -28,6 +32,7 @@ function createEmailSender({ provider, fetchImpl, httpUrl, httpToken, onConsole 
           method: 'POST',
           headers,
           body: JSON.stringify({
+            from: message.from || senderFrom,
             to: message.to,
             subject: message.subject,
             text: message.text,
@@ -49,4 +54,4 @@ function createEmailSender({ provider, fetchImpl, httpUrl, httpToken, onConsole 
   };
 }
 
-module.exports = { createEmailSender };
+module.exports = { createEmailSender, DEFAULT_EMAIL_FROM };
