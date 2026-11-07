@@ -1,55 +1,44 @@
 'use strict';
 
-// The public download route used to read mac/dist/battery-sos-macos.dmg out of
-// the deploy. PR #5 removed that committed file and nothing was put in its
-// place, so the route 404s. These URLs are the immutable Git blobs of the last
-// file main actually shipped at that path (commit 68b7bea, blob 2720b400,
-// 1,429,342 bytes). They are not a new build.
+// Archived installer that the public route served until PR #5 deleted the file.
+// Commit 68b7bea, blob 2720b40037fdb5d1364ab3fb5cf3893b90d0b3d1.
+// sha256 c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60
+// size 1429342. Checksum blob 1396a86dd64c297869100ad2b5c3a46b38ba14ea.
 //
-// Measured 2026-11-07 from this repo and from raw.githubusercontent.com:
-//   HTTP 200, content-length 1429342
-//   sha256 c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60
-//   byte-identical to `git cat-file -p 2720b40037fdb5d1364ab3fb5cf3893b90d0b3d1`
-// The committed checksum file at that same commit is that hash and a newline.
+// Static inspection on 2026-11-07, after sha256 of the git blob matched:
+// dmg2img 1.6.7 decompressed the UDIF image (koly trailer at offset 1428830).
+// The decompressed image contains the Swift string http://127.0.0.1:8787 next
+// to BATTERY_SOS_BILLING_URL and MonetizationManager. It does not contain
+// pay.batterysos.app. Info.plist inside the image says CFBundleShortVersionString
+// 1.0.0 and CFBundleVersion 202603110225. The image was not executed.
 //
-// James mounted this DMG read-only on 2026-11-07. The app inside is 1.0.0
-// build 202603110225, bundle com.jamesbell.battery-sos, macOS 13+, arm64.
-// codesign --verify --strict passed. Gatekeeper accepted a notarized
-// Developer ID for JAMES FRANK BELL (9JNKPQCLGG), and the DMG ticket was
-// stapled. The new entitlement public key is not in that app. It is the old
-// licensing client. The published sparkle:edSignature verifies only the
-// older 1,362,061-byte archive (build 202603061320, commit 3f1f49d) and
-// returns false for these 1,429,342 bytes. The feed must not reuse it.
+// The route must not send this file. Customers would get an installer whose
+// compiled billing default is their own loopback.
 const LAST_PUBLIC_RELEASE_COMMIT = '68b7bea5f8ec3ec4a4fa12b7712d0a635b7e77a4';
 const LAST_PUBLIC_DMG_SHA256 = 'c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60';
 const LAST_PUBLIC_DMG_BYTES = 1429342;
+const COMPILED_BILLING_URL = 'http://127.0.0.1:8787';
 
-function historicalRawUrl(filename) {
-  return `https://raw.githubusercontent.com/jamesfrankbell/battery-sos/${LAST_PUBLIC_RELEASE_COMMIT}/mac/dist/${filename}`;
-}
-
-const LAST_PUBLIC_DMG_URL = historicalRawUrl('battery-sos-macos.dmg');
-const LAST_PUBLIC_DMG_SHA256_URL = historicalRawUrl('battery-sos-macos.dmg.sha256');
-
-function publicDownloadRedirect(pathname) {
-  if (pathname === '/downloads/battery-sos-macos.dmg') {
-    return {
-      location: LAST_PUBLIC_DMG_URL,
+function publicDownloadResponse(pathname) {
+  if (pathname !== '/downloads/battery-sos-macos.dmg' && pathname !== '/downloads/battery-sos-macos.dmg.sha256') {
+    return null;
+  }
+  return {
+    status: 404,
+    body: {
+      error: 'Download withheld.',
       sha256: LAST_PUBLIC_DMG_SHA256,
       bytes: LAST_PUBLIC_DMG_BYTES,
-    };
-  }
-  if (pathname === '/downloads/battery-sos-macos.dmg.sha256') {
-    return { location: LAST_PUBLIC_DMG_SHA256_URL };
-  }
-  return null;
+      containedBuild: '202603110225',
+      compiledBillingURL: COMPILED_BILLING_URL,
+    },
+  };
 }
 
 module.exports = {
+  COMPILED_BILLING_URL,
   LAST_PUBLIC_DMG_BYTES,
   LAST_PUBLIC_DMG_SHA256,
-  LAST_PUBLIC_DMG_SHA256_URL,
-  LAST_PUBLIC_DMG_URL,
   LAST_PUBLIC_RELEASE_COMMIT,
-  publicDownloadRedirect,
+  publicDownloadResponse,
 };

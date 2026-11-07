@@ -1,22 +1,16 @@
 # Battery SOS — Launch Ready Checklist (Public Launch)
 
-## Public download (not restored until this change is deployed)
+## Public download (do not restore the archived DMG)
 
 Measured 2026-11-07: `https://batterysos.app/downloads/battery-sos-macos.dmg` and `.sha256` return HTTP 404. `download.batterysos.app` is not a working file host (403 on `/`, timeout on the DMG path).
 
-The last file those routes served is still in git history and on GitHub at commit `68b7bea5f8ec3ec4a4fa12b7712d0a635b7e77a4`:
+The archived file is commit `68b7bea5f8ec3ec4a4fa12b7712d0a635b7e77a4`, blob `2720b40037fdb5d1364ab3fb5cf3893b90d0b3d1`, 1,429,342 bytes, sha256 `c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60`. Checksum blob `1396a86dd64c297869100ad2b5c3a46b38ba14ea`. James's mount of that same file: 1.0.0 build `202603110225`, notarized Developer ID JAMES FRANK BELL (9JNKPQCLGG), stapler passed, no new entitlement public key.
 
-- blob `2720b40037fdb5d1364ab3fb5cf3893b90d0b3d1`
-- 1,429,342 bytes
-- sha256 `c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60`
-- checksum blob `1396a86dd64c297869100ad2b5c3a46b38ba14ea`
-- James's read-only check of the same file: app inside is 1.0.0 build `202603110225`, `com.jamesbell.battery-sos`, macOS 13, arm64; strict codesign passed; Gatekeeper accepted notarized Developer ID JAMES FRANK BELL (9JNKPQCLGG); stapler validate passed
-- The new entitlement public key is not in that app. It is the old licensing client. Do not claim it activates against the current server until that is tested on a Mac. The October 1 recovery note said this public DMG's executable still calls `http://127.0.0.1:8787`.
-- `mac/dist/Battery SOS.app` at 1.0.1 build `202610150505` has no Team ID and Gatekeeper rejects it. Do not ship that app.
+Static inspection of those exact bytes on Linux: `dmg2img` 1.6.7 decompressed the UDIF image. The image contains `http://127.0.0.1:8787` beside `BATTERY_SOS_BILLING_URL` and `MonetizationManager`. It does not contain `pay.batterysos.app`. `https://batterysos.app/appcast.xml` is present as the Sparkle feed URL only. The image was not executed. This route therefore withholds the file instead of redirecting to it.
 
-The live appcast item is a different archive: 1.0.0 build `202603061320`, 1,362,061 bytes. Its `edSignature` verifies that older file and does not verify the 1,429,342-byte DMG. This change removes that item instead of reusing the signature. Sparkle updates stay off until James runs `sign_update` on this exact DMG and supplies the resulting signature.
+The old appcast item (build `202603061320`, 1,362,061 bytes) has an `edSignature` that verifies that other archive and does not verify these 1,429,342 bytes. The feed no longer has an enclosure. An empty Sparkle 2 channel means no update. `mac/dist/Battery SOS.app` build `202610150505` is unsigned by Gatekeeper and is not a substitute.
 
-`https://raw.githubusercontent.com/jamesfrankbell/battery-sos/68b7bea5f8ec3ec4a4fa12b7712d0a635b7e77a4/mac/dist/battery-sos-macos.dmg` returned HTTP 200, content-length 1429342, and the sha256 above. The bytes matched the git blob. No new binary is added to the tree. The public route stays 404 until this redirect is deployed.
+The new client source is PR #7. Its default billing URL in source is `https://pay.batterysos.app`, and the build script rejects a binary that contains `http://127.0.0.1:8787`. That candidate has not been compiled here.
 
 ## ✅ Completed tonight
 
@@ -25,7 +19,7 @@ The live appcast item is a different archive: 1.0.0 build `202603061320`, 1,362,
 - Added direct download routes on the billing server:
   - `/downloads/battery-sos-macos.dmg`
   - `/downloads/battery-sos-macos.dmg.sha256`
-- Those routes 404 after the committed DMG was removed. The repair redirects them to the last DMG that was on `main` (`68b7bea`, 1,429,342 bytes, sha256 `c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60`). That is not a new build. The stale Sparkle item was removed so its signature is not reused for these bytes.
+- Those routes 404 after the committed DMG was removed. The archived DMG is withheld: its compiled billing default is `http://127.0.0.1:8787`. The stale Sparkle enclosure was removed so its signature is not reused.
 - Switched server static site root to `website/` so production `/` is launch page
 
 ## 🔒 Needed from James (blocking public launch)

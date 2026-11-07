@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { clientAddress } = require('./client-address');
-const { publicDownloadRedirect } = require('./public-download');
+const { publicDownloadResponse } = require('./public-download');
 const { consumeRateLimit } = require('./rate-limit');
 const {
   createCheckoutSession,
@@ -276,15 +276,9 @@ function handleBillingPage(res, requestUrl) {
 }
 
 function handleDownloads(res, pathname) {
-  const redirect = publicDownloadRedirect(pathname);
-  if (!redirect) return false;
-
-  res.writeHead(302, {
-    location: redirect.location,
-    'cache-control': 'no-store',
-    'x-content-type-options': 'nosniff',
-  });
-  res.end();
+  const blocked = publicDownloadResponse(pathname);
+  if (!blocked) return false;
+  sendJson(res, blocked.status, blocked.body);
   return true;
 }
 

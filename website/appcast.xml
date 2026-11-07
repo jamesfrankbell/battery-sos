@@ -2,6 +2,6 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>Battery SOS</title>
-        <description>No Sparkle update is advertised. The notarized public DMG is 1.0.0 build 202603110225, 1429342 bytes, and has no edSignature on file. The previous item signed a different archive: build 202603061320, 1362061 bytes.</description>
+        <description>No update is offered. The archived 1.0.0 build 202603110225 DMG (1429342 bytes) has no Sparkle signature, and its compiled billing default is http://127.0.0.1:8787. The previous signature belonged to a different 1362061-byte archive, build 202603061320.</description>
     </channel>
 </rss>
