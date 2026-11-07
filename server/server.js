@@ -1,6 +1,14 @@
 const http = require('node:http');
 
+const { assertProductionConfig } = require('./billing');
 const { createRequestHandler } = require('./router');
+
+try {
+  assertProductionConfig();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 const port = Number(process.env.PORT || 8787);
 const host = process.env.HOST || '0.0.0.0';
