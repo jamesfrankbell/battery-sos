@@ -3066,6 +3066,75 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func promptForLicenseRecovery() {
+        let alert = NSAlert()
+        alert.messageText = "Email My License Key"
+        alert.informativeText = "Enter the email address used at checkout. If a license is on file, Battery SOS emails the key there. This window does not show the key."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Send Email")
+        alert.addButton(withTitle: "Cancel")
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        input.placeholderString = "you@example.com"
+        alert.accessoryView = input
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let email = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard email.contains("@"), email.contains("."), email.count <= 254 else {
+            presentRecoveryResult("Enter the email address used at checkout.")
+            return
+        }
+        requestLicenseEmail(email)
+    }
+
+    private func requestLicenseEmail(_ email: String) {
+        guard let url = URL(string: "/api/billing/recover", relativeTo: billingBaseURL) else {
+            presentRecoveryResult("Billing endpoint URL is invalid.")
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["email": email])
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if error != nil {
+                    self.presentRecoveryResult("Battery SOS could not reach the billing server. Try again in a moment.")
+                    return
+                }
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                if status == 429 {
+                    self.presentRecoveryResult("Too many requests. Wait a few minutes and try again.")
+                    return
+                }
+                let object = (try? JSONSerialization.jsonObject(with: data ?? Data())) as? [String: Any]
+                if status != 200 {
+                    self.presentRecoveryResult("Enter the email address used at checkout.")
+                    return
+                }
+                self.presentRecoveryResult(Self.recoveryUserMessage(from: object))
+            }
+        }.resume()
+    }
+
+    private static func recoveryUserMessage(from object: [String: Any]?) -> String {
+        let generic = "If a license exists for that email, we sent it to the address on file."
+        guard let object else { return generic }
+        if object["key"] != nil || object["licenses"] != nil || object["licenseKey"] != nil {
+            return generic
+        }
+        if object["accepted"] as? Bool == true, let message = object["message"] as? String, !message.isEmpty {
+            return message
+        }
+        return generic
+    }
+
+    private func presentRecoveryResult(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = "License Email"
+        alert.informativeText = message
+        alert.runModal()
+    }
+
     @objc private func clearLicenseKey() {
         monetization.clearLicense()
         updateMonetizationUI()
@@ -3313,9 +3382,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enterLicense.target = self
         let clearLicense = NSMenuItem(title: "Clear License Key", action: #selector(clearLicenseKey), keyEquivalent: "")
         clearLicense.target = self
+        let emailLicense = NSMenuItem(title: "Email My License Key...", action: #selector(promptForLicenseRecovery), keyEquivalent: "")
+        emailLicense.target = self
         settingsMenu.addItem(unlockPro)
         settingsMenu.addItem(licenseStatusMenuItem)
         settingsMenu.addItem(enterLicense)
+        settingsMenu.addItem(emailLicense)
         settingsMenu.addItem(clearLicense)
 
         menu.addItem(settingsMenuItem)
@@ -3480,7 +3552,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateModeMenuTitles() {
         defaultWarningModeItem?.title = OverlayMode.defaultWarning.rawValue
-        vitalsModeItem?.title = OverlayMode.vitalsMonitor.rawValue
+        vitalsModeItem?.title = menuTitle(for: .vitalsMonitor)
         selfDestructModeItem?.title = menuTitle(for: .selfDestruct)
         reactorMeltdownModeItem?.title = menuTitle(for: .reactorMeltdown)
         starshipLifeSupportModeItem?.title = menuTitle(for: .starshipLifeSupport)

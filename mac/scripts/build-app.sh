@@ -8,8 +8,15 @@ SRC_FILE="$MAC_DIR/BatteryEmergencyOverlay.swift"
 APP_NAME="${APP_NAME:-Battery SOS}"
 EXECUTABLE_NAME="${EXECUTABLE_NAME:-BatterySOS}"
 BUNDLE_ID="${BUNDLE_ID:-com.jamesbell.battery-sos}"
-VERSION="${VERSION:-1.0.0}"
-BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
+VERSION="${VERSION:-1.0.1}"
+if [[ -z "${BUILD_NUMBER:-}" ]]; then
+  echo "Set BUILD_NUMBER to the reviewed build id, for example BUILD_NUMBER=202611071600." >&2
+  exit 1
+fi
+if [[ ! "$BUILD_NUMBER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "BUILD_NUMBER may contain only letters, numbers, dots, underscores, and hyphens." >&2
+  exit 1
+fi
 MIN_OS_VERSION="${MIN_OS_VERSION:-13.0}"
 DIST_DIR="${DIST_DIR:-$MAC_DIR/dist}"
 APP_PATH="$DIST_DIR/$APP_NAME.app"
@@ -38,13 +45,19 @@ echo "  App: $APP_NAME"
 echo "  Bundle ID: $BUNDLE_ID"
 echo "  Version: $VERSION ($BUILD_NUMBER)"
 echo "  Sparkle: $SPARKLE_VERSION"
+echo "  Target: arm64-apple-macosx$MIN_OS_VERSION"
 
-rm -rf "$APP_PATH"
+if [[ -e "$APP_PATH" ]]; then
+  echo "Refusing to overwrite an existing app: $APP_PATH" >&2
+  echo "Set DIST_DIR to a new directory. Do not replace a signed artifact in place." >&2
+  exit 1
+fi
 mkdir -p "$APP_PATH/Contents/MacOS" "$APP_PATH/Contents/Resources" "$APP_PATH/Contents/Frameworks"
 
 xcrun --sdk macosx swiftc \
   "$SRC_FILE" \
   -O \
+  -target "arm64-apple-macosx$MIN_OS_VERSION" \
   -F "$SPARKLE_FRAMEWORK_DIR" \
   -framework Sparkle \
   -Xlinker -rpath \
@@ -106,8 +119,32 @@ cat > "$APP_PATH/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
+SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+SOURCE_SHA256="$(shasum -a 256 "$SRC_FILE" | awk '{print $1}')"
+cat > "$APP_PATH/Contents/Resources/BuildProvenance.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>SourceRevision</key>
+  <string>$SOURCE_REVISION</string>
+  <key>SourceSHA256</key>
+  <string>$SOURCE_SHA256</string>
+  <key>BuildNumber</key>
+  <string>$BUILD_NUMBER</string>
+  <key>Version</key>
+  <string>$VERSION</string>
+  <key>Target</key>
+  <string>arm64-apple-macosx$MIN_OS_VERSION</string>
+</dict>
+</plist>
+EOF
+
 echo "Signing app bundle for local verification:"
 echo "  Identity: $APP_SIGN_IDENTITY"
+if [[ "$APP_SIGN_IDENTITY" == "-" ]]; then
+  echo "Ad-hoc signature only. This bundle is not notarized and is not a public download."
+fi
 codesign --force --deep --sign "$APP_SIGN_IDENTITY" "$APP_PATH"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 

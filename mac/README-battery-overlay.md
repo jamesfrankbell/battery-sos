@@ -37,8 +37,10 @@ Release scripts live in:
 ### 1) Build unsigned app + dmg
 
 ```bash
-mac/scripts/release.sh
+BUILD_NUMBER=202611071600 DIST_DIR="$HOME/Library/Application Support/BatterySOS/candidate-1.0.1" mac/scripts/release.sh
 ```
+
+`BUILD_NUMBER` is required. The default version is 1.0.1. Without `DEVELOPER_ID_APP` and `NOTARY_PROFILE` the result is an ad-hoc candidate, not a public download. See `mac/RELEASE-CANDIDATE.md`.
 
 Artifacts are written to:
 

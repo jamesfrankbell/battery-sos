@@ -20,13 +20,28 @@ if [[ -z "$IDENTITY" ]]; then
   exit 1
 fi
 
-echo "Signing app bundle:"
+echo "Signing app bundle inside out:"
 echo "  $APP_PATH"
 echo "  Identity: $IDENTITY"
 
+FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+# Sparkle 2 nests XPC services and Updater.app. Sign those before the framework
+# and the app. --deep is not used for the Developer ID signature.
+for nested in \
+  "$FRAMEWORK/Versions/B/XPCServices/Downloader.xpc" \
+  "$FRAMEWORK/Versions/B/XPCServices/Installer.xpc" \
+  "$FRAMEWORK/Versions/B/Autoupdate" \
+  "$FRAMEWORK/Versions/B/Updater.app" \
+  "$FRAMEWORK"
+do
+  if [[ -e "$nested" ]]; then
+    echo "  $nested"
+    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$nested"
+  fi
+done
+
 codesign \
   --force \
-  --deep \
   --options runtime \
   --timestamp \
   --sign "$IDENTITY" \
