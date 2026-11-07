@@ -1,5 +1,23 @@
 # Battery SOS — Launch Ready Checklist (Public Launch)
 
+## Public download (not restored until this change is deployed)
+
+Measured 2026-11-07: `https://batterysos.app/downloads/battery-sos-macos.dmg` and `.sha256` return HTTP 404. `download.batterysos.app` is not a working file host (403 on `/`, timeout on the DMG path).
+
+The last file those routes served is still in git history and on GitHub at commit `68b7bea5f8ec3ec4a4fa12b7712d0a635b7e77a4`:
+
+- blob `2720b40037fdb5d1364ab3fb5cf3893b90d0b3d1`
+- 1,429,342 bytes
+- sha256 `c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60`
+- checksum blob `1396a86dd64c297869100ad2b5c3a46b38ba14ea`
+- James's read-only check of the same file: app inside is 1.0.0 build `202603110225`, `com.jamesbell.battery-sos`, macOS 13, arm64; strict codesign passed; Gatekeeper accepted notarized Developer ID JAMES FRANK BELL (9JNKPQCLGG); stapler validate passed
+- The new entitlement public key is not in that app. It is the old licensing client. Do not claim it activates against the current server until that is tested on a Mac. The October 1 recovery note said this public DMG's executable still calls `http://127.0.0.1:8787`.
+- `mac/dist/Battery SOS.app` at 1.0.1 build `202610150505` has no Team ID and Gatekeeper rejects it. Do not ship that app.
+
+The live appcast item is a different archive: 1.0.0 build `202603061320`, 1,362,061 bytes. Its `edSignature` verifies that older file and does not verify the 1,429,342-byte DMG. This change removes that item instead of reusing the signature. Sparkle updates stay off until James runs `sign_update` on this exact DMG and supplies the resulting signature.
+
+`https://raw.githubusercontent.com/jamesfrankbell/battery-sos/68b7bea5f8ec3ec4a4fa12b7712d0a635b7e77a4/mac/dist/battery-sos-macos.dmg` returned HTTP 200, content-length 1429342, and the sha256 above. The bytes matched the git blob. No new binary is added to the tree. The public route stays 404 until this redirect is deployed.
+
 ## ✅ Completed tonight
 
 - Simplified landing page to clean light theme (less "AI vibe")
@@ -7,8 +25,7 @@
 - Added direct download routes on the billing server:
   - `/downloads/battery-sos-macos.dmg`
   - `/downloads/battery-sos-macos.dmg.sha256`
-- Recomputed checksum file:
-  - `mac/dist/battery-sos-macos.dmg.sha256`
+- Those routes 404 after the committed DMG was removed. The repair redirects them to the last DMG that was on `main` (`68b7bea`, 1,429,342 bytes, sha256 `c7ac6df78b80acdf92ad0b6990b7f550cc28292cf444c26bcd32750759608c60`). That is not a new build. The stale Sparkle item was removed so its signature is not reused for these bytes.
 - Switched server static site root to `website/` so production `/` is launch page
 
 ## 🔒 Needed from James (blocking public launch)

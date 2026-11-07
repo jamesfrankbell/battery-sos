@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { clientAddress } = require('./client-address');
+const { publicDownloadRedirect } = require('./public-download');
 const { consumeRateLimit } = require('./rate-limit');
 const {
   createCheckoutSession,
@@ -26,7 +27,6 @@ const {
 } = require('./store');
 
 const CLIENT_DIR = path.resolve(__dirname, '..', 'website');
-const DOWNLOADS_DIR = path.resolve(__dirname, '..', 'mac', 'dist');
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -275,33 +275,16 @@ function handleBillingPage(res, requestUrl) {
   return false;
 }
 
-function resolveDownloadFile(pathname) {
-  if (pathname === '/downloads/battery-sos-macos.dmg') {
-    return path.join(DOWNLOADS_DIR, 'battery-sos-macos.dmg');
-  }
-
-  if (pathname === '/downloads/battery-sos-macos.dmg.sha256') {
-    return path.join(DOWNLOADS_DIR, 'battery-sos-macos.dmg.sha256');
-  }
-
-  return null;
-}
-
 function handleDownloads(res, pathname) {
-  const filePath = resolveDownloadFile(pathname);
-  if (!filePath) return false;
+  const redirect = publicDownloadRedirect(pathname);
+  if (!redirect) return false;
 
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    sendError(res, 404, 'Download not found.');
-    return true;
-  }
-
-  const downloadName = path.basename(filePath);
-  sendFile(res, filePath, {
-    'content-disposition': `attachment; filename="${downloadName}"`,
+  res.writeHead(302, {
+    location: redirect.location,
+    'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
-    'cache-control': 'public, max-age=300',
   });
+  res.end();
   return true;
 }
 
